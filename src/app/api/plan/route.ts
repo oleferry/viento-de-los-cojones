@@ -88,15 +88,27 @@ export async function POST(request: Request) {
     rider: sanitizeRider(body.rider),
   };
 
+  // Muy por debajo del limite de la plataforma (60 s). Si se apura hasta el
+  // final, quien corta es Vercel y devuelve una pagina de error en texto plano;
+  // el navegador intenta parsearla como JSON y salta
+  // "Unexpected token 'A', \"An error o\"...". Rindiendonos antes, el error
+  // siempre sale como JSON y se puede explicar.
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 55_000);
+  const timer = setTimeout(() => ac.abort(new Error("deadline")), 38_000);
   try {
     const result = await plan(req, ac.signal);
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const status = /abort/i.test(message) ? 504 : 502;
-    return NextResponse.json({ error: message }, { status });
+    const abortado = ac.signal.aborted || /abort/i.test(message);
+    return NextResponse.json(
+      {
+        error: abortado
+          ? "Los servidores de rutas están tardando demasiado. Prueba otra vez, o con menos distancia."
+          : message,
+      },
+      { status: abortado ? 504 : 502 }
+    );
   } finally {
     clearTimeout(timer);
   }

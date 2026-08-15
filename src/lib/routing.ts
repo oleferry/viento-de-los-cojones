@@ -113,14 +113,63 @@ const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * Tiempo maximo por peticion a un proveedor. Sin esto, uno que se quede colgado
+ * bloquea el plan entero hasta que la plataforma mata la funcion, y el usuario
+ * recibe una pagina de error en HTML en vez de una respuesta. Mas vale rendirse
+ * pronto y pasar al siguiente de la cadena.
+ */
+const REQUEST_TIMEOUT_MS = 9_000;
+
+/**
+ * Combina el AbortSignal de quien llama con un limite de tiempo propio, sin
+ * depender de AbortSignal.any/timeout para no atarnos a una version de Node.
+ */
+function withTimeout(signal: AbortSignal | undefined, ms: number) {
+  const ac = new AbortController();
+  const onAbort = () => ac.abort(signal?.reason);
+  if (signal) {
+    if (signal.aborted) ac.abort(signal.reason);
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
+  const timer = setTimeout(() => ac.abort(new Error("timeout")), ms);
+  return {
+    signal: ac.signal,
+    done: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+    },
+  };
+}
+
+/** Igual que fetch, pero se rinde a los `ms` milisegundos. */
+async function fetchLimited(
+  url: string,
+  init: RequestInit,
+  signal: AbortSignal | undefined,
+  ms = REQUEST_TIMEOUT_MS
+): Promise<Response> {
+  const t = withTimeout(signal, ms);
+  try {
+    return await fetch(url, { ...init, signal: t.signal });
+  } catch (err) {
+    if (t.signal.aborted && !signal?.aborted) {
+      throw new RoutingError(`sin respuesta en ${Math.round(ms / 1000)} s`, 504);
+    }
+    throw err;
+  } finally {
+    t.done();
+  }
+}
+
+/**
  * Reintenta con espera creciente. El OSRM publico de FOSSGIS devuelve 502 con
  * facilidad cuando le llegan varias peticiones seguidas, y sin esto un unico
  * hipo se lleva por delante todo el plan.
  */
 async function withRetry<T>(
   fn: () => Promise<T>,
-  attempts = 3,
-  baseMs = 600
+  attempts = 2,
+  baseMs = 400
 ): Promise<T> {
   let last: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -146,9 +195,8 @@ async function routeORS(
   const key = process.env.ORS_API_KEY;
   if (!key) throw new RoutingError("Falta ORS_API_KEY");
   const profile = orsProfile(surface);
-  const res = await fetch(`${ORS_BASE}/v2/directions/${profile}/geojson`, {
+  const res = await fetchLimited(`${ORS_BASE}/v2/directions/${profile}/geojson`, {
     method: "POST",
-    signal,
     cache: "no-store",
     headers: {
       Authorization: key,
@@ -165,7 +213,7 @@ async function routeORS(
       radiuses: waypoints.map(() => 5000),
       options: { avoid_features: ["ferries"] },
     }),
-  });
+  }, signal);
 
   if (!res.ok) {
     const body = await res.text();
@@ -224,11 +272,11 @@ async function routeBRouter(
   url.searchParams.set("alternativeidx", "0");
   url.searchParams.set("format", "geojson");
 
-  const res = await fetch(url.toString(), {
-    signal,
-    cache: "no-store",
-    headers: { "User-Agent": UA, Accept: "application/json" },
-  });
+  const res = await fetchLimited(
+    url.toString(),
+    { cache: "no-store", headers: { "User-Agent": UA, Accept: "application/json" } },
+    signal
+  );
   if (!res.ok) {
     throw new RoutingError(
       `BRouter ${res.status}: ${(await res.text()).slice(0, 300)}`,
@@ -259,11 +307,11 @@ async function routeOSRM(
   const url =
     `${OSRM_BASE}/routed-bike/route/v1/driving/${path}` +
     `?overview=full&geometries=geojson&continue_straight=false&alternatives=false&steps=false`;
-  const res = await fetch(url, {
-    signal,
-    cache: "no-store",
-    headers: { "User-Agent": UA, Accept: "application/json" },
-  });
+  const res = await fetchLimited(
+    url,
+    { cache: "no-store", headers: { "User-Agent": UA, Accept: "application/json" } },
+    signal
+  );
   if (!res.ok) {
     throw new RoutingError(`OSRM ${res.status}: ${(await res.text()).slice(0, 300)}`, res.status);
   }

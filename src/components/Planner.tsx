@@ -199,7 +199,20 @@ export default function Planner() {
             rider: riderPayload,
           }),
         });
-        const data = await res.json();
+        // Nunca `res.json()` a pelo: cuando la plataforma corta la funcion
+        // devuelve texto plano ("An error occurred with your deployment...") y
+        // el parseo revienta con un mensaje que no dice nada del problema real.
+        const raw = await res.text();
+        let data: PlanResponse & { error?: string };
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          throw new Error(
+            res.status === 504 || /TIMEOUT/i.test(raw)
+              ? "El servidor ha tardado demasiado en responder. Prueba con menos distancia o menos margen de horas."
+              : `El servidor respondió algo inesperado (${res.status}). Inténtalo de nuevo en un momento.`
+          );
+        }
         if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
         setResult((prev) =>
           overrideDepartureMs != null && prev
