@@ -12,6 +12,7 @@ import GroupPicker from "./GroupPicker";
 import TrackImport from "./TrackImport";
 import AccountBar, { useCuenta } from "./AccountBar";
 import SavedRoutes from "./SavedRoutes";
+import InstalarApp from "./PWA";
 import { downloadGPX } from "@/lib/gpx";
 import type { ImportedTrack } from "@/lib/gpxImport";
 import {
@@ -733,8 +734,11 @@ export default function Planner() {
             <span className="shrink-0 text-[var(--color-faint)]">›</span>
           </button>
 
+          {/* Envuelto por lo mismo que la barra de modos: `.btn` declara
+              display en la hoja despues de Tailwind y le gana a `hidden`. */}
+          <div className={ocultaEnMovil}>
           <button
-            className={`btn btn-primary w-full !py-2.5 !text-[0.9rem] ${ocultaEnMovil}`}
+            className="btn btn-primary w-full !py-2.5 !text-[0.9rem]"
             disabled={!canPlan || busy}
             onClick={() => run()}
           >
@@ -749,6 +753,9 @@ export default function Planner() {
               "Trazar ruta"
             )}
           </button>
+          </div>
+
+          <InstalarApp />
 
           {error && (
             <div className="rise rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[0.78rem] leading-snug text-red-200">
