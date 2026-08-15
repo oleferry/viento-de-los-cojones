@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["cdg1"],
+  "functions": {
+    "src/app/api/plan/route.ts": { "maxDuration": 60 },
+    "src/app/api/geocode/route.ts": { "maxDuration": 15 },
+    "src/app/api/diag/route.ts": { "maxDuration": 60 }
+  }
+}
