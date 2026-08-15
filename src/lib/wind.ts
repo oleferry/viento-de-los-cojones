@@ -146,7 +146,10 @@ export async function fetchWindField(
   url.searchParams.set("forecast_days", String(Math.max(1, Math.min(16, forecastDays))));
   url.searchParams.set("past_hours", "1");
 
-  const res = await fetch(url.toString(), { signal, cache: "no-store" });
+  // La prevision se actualiza como mucho cada hora, asi que cachear 15 minutos
+  // no pierde nada de frescura y ahorra la mayoria de las llamadas cuando se
+  // reajusta el plan (cambiar de hora, de firme o de perfil).
+  const res = await fetch(url.toString(), { signal, next: { revalidate: 900 } });
   if (!res.ok) {
     throw new Error(`Open-Meteo respondio ${res.status}: ${await res.text()}`);
   }

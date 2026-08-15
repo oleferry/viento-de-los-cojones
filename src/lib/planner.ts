@@ -38,6 +38,12 @@ const SEGMENT_STEP_M = 400;
 
 interface Shaped {
   id: string;
+  /**
+   * Clave unica de ESTA version de la geometria. El id se conserva cuando una
+   * ruta se vuelve a trazar (al ajustar la distancia o al anadirle altimetria),
+   * asi que cachear por id devolvia tiempos calculados sobre la geometria vieja.
+   */
+  key: string;
   headingDeg?: number;
   geometry: RouteGeometry;
   segmentsFwd: Segment[];
@@ -86,7 +92,7 @@ export async function plan(
 
   if (provider === "osrm") {
     warnings.push(
-      "Sin ORS_API_KEY: se usa el OSRM publico de FOSSGIS. Funciona, pero no distingue carretera/camino ni informa del firme."
+      "Sin clave de OpenRouteService: se usa el OSRM público de FOSSGIS. Funciona, pero no distingue carretera de camino, no informa del firme y limita las peticiones."
     );
   }
 
@@ -114,6 +120,7 @@ export async function plan(
   let routingCalls = 0;
   const shapes: Shaped[] = [];
 
+  let shapeVersion = 0;
   const buildShape = (
     id: string,
     label: string,
@@ -123,6 +130,7 @@ export async function plan(
     const fwd = resample(geometry.coords, SEGMENT_STEP_M);
     return {
       id,
+      key: `${id}#${shapeVersion++}`,
       label,
       headingDeg,
       geometry,
@@ -163,8 +171,25 @@ export async function plan(
     });
   } else {
     const n = loopVertices(req.distanceKm);
-    const headings: number[] = [];
-    for (let h = 0; h < 360; h += HEADING_STEP) headings.push(h);
+    const allHeadings: number[] = [];
+    for (let h = 0; h < 360; h += HEADING_STEP) allHeadings.push(h);
+
+    // Precribado sin gastar peticiones: el bucle ideal (el poligono, antes de
+    // pegarlo a las carreteras) ya dice bastante sobre como le va a sentar el
+    // viento. Puntuamos los 12 rumbos sobre esa geometria teorica y solo
+    // enrutamos los que valen la pena. Pasamos de 12 peticiones a 7, que en el
+    // OSRM publico es la diferencia entre funcionar y comerse un 502.
+    const wind = await windPromise;
+    const headings = preselectHeadings(
+      allHeadings,
+      req,
+      targetM,
+      n,
+      wind,
+      baseMs,
+      rider,
+      7
+    );
 
     const settled = await Promise.allSettled(
       headings.map((h) => {
@@ -181,7 +206,7 @@ export async function plan(
       shapes.push(
         buildShape(
           `h${headings[i]}`,
-          `Salida hacia ${headings[i]}°`,
+          `Salida hacia ${cardinalOf(headings[i])} (${headings[i]}°)`,
           r.value,
           headings[i]
         )
@@ -199,6 +224,9 @@ export async function plan(
   }
 
   const wind = await windPromise;
+  if (!shapes.length) {
+    throw new Error("No se pudo trazar ninguna ruta con esos parametros");
+  }
 
   // --- 3. Evaluacion: geometria x sentido x hora de salida -----------------
   const departures: number[] = [];
@@ -240,7 +268,7 @@ export async function plan(
               { reversed: true, segs: shape.segmentsRev },
             ];
       for (const sense of senses) {
-        const calm = calmFor(`${shape.id}:${sense.reversed}`, sense.segs);
+        const calm = calmFor(`${shape.key}:${sense.reversed}`, sense.segs);
         for (const dep of departures) {
           // El simulador avanza el reloj en segundos desde la salida; aqui lo
           // convertimos al instante absoluto para consultar la prevision.
@@ -482,6 +510,94 @@ export async function plan(
       rider,
     },
   };
+}
+
+const CARDINALS = [
+  "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+  "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
+];
+function cardinalOf(deg: number): string {
+  return CARDINALS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+}
+
+/**
+ * Elige que rumbos de salida merece la pena enrutar.
+ *
+ * Enrutar cuesta una peticion de red por candidato; evaluar el poligono teorico
+ * no cuesta nada. Como el viento depende del RUMBO y el rumbo del poligono ya
+ * se parece bastante al de la carretera que lo sigue, el precribado acierta casi
+ * siempre y ahorra la mitad de las peticiones.
+ *
+ * Se garantiza variedad: ademas de los mejores por puntuacion se cuela siempre
+ * alguno que salga hacia el lado opuesto, para no ofrecer cuatro rutas iguales.
+ */
+function preselectHeadings(
+  headings: number[],
+  req: PlanRequest,
+  targetM: number,
+  n: number,
+  wind: { sample: (lon: number, lat: number, t: number) => { speed10: number; fromDeg: number; rho: number } },
+  departureMs: number,
+  rider: RiderProfile,
+  keep: number
+): number[] {
+  if (headings.length <= keep) return headings;
+
+  const scored = headings.map((h) => {
+    const pts = polygonLoop(req.start, h, targetM / DETOUR_FACTOR, n, true);
+    const coords = pts.map((p) => [p[0], p[1]]);
+    const segs = toSegments(resample(coords, SEGMENT_STEP_M));
+    let best = Infinity;
+    for (const reversed of [false, true]) {
+      const s = reversed ? toSegments(resample(coords.slice().reverse(), SEGMENT_STEP_M)) : segs;
+      const ev = evaluateRoute(
+        s,
+        (lon, lat, tSec) => {
+          const w = wind.sample(lon, lat, departureMs + tSec * 1000);
+          return { speed: w.speed10, fromDeg: w.fromDeg, rho: w.rho };
+        },
+        rider
+      );
+      // Mismo criterio que el ranking final, en version reducida.
+      const score =
+        req.windMode === "min_effort"
+          ? ev.timeS
+          : ev.timeS - ev.homeTailwind * 900 + (req.windMode === "hard_first" ? ev.outboundTailwind * 300 : 0);
+      if (score < best) best = score;
+    }
+    return { h, score: best };
+  });
+
+  const byScore = [...scored].sort((a, b) => a.score - b.score);
+  const picked: number[] = [];
+  const take = (h: number) => {
+    if (!picked.includes(h)) picked.push(h);
+  };
+
+  // Dos tercios por puntuacion pura...
+  const strong = Math.max(1, Math.ceil((keep * 2) / 3));
+  for (const s of byScore.slice(0, strong)) take(s.h);
+
+  // ...y el resto buscando rumbos alejados de lo ya elegido, para dar opciones
+  // que no sean variaciones de la misma.
+  while (picked.length < keep) {
+    let bestH = -1;
+    let bestGap = -1;
+    for (const s of byScore) {
+      if (picked.includes(s.h)) continue;
+      const gap = Math.min(
+        ...picked.map((p) => Math.abs(((s.h - p + 540) % 360) - 180))
+      );
+      if (gap > bestGap) {
+        bestGap = gap;
+        bestH = s.h;
+      }
+    }
+    if (bestH < 0) break;
+    take(bestH);
+  }
+
+  return picked.sort((a, b) => a - b);
 }
 
 function bearingOf(a: LonLat, b: LonLat): number {

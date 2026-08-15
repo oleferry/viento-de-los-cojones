@@ -355,6 +355,10 @@ export default function MapView({
     ro.observe(node);
     requestAnimationFrame(() => m.resize());
 
+    // Accesible desde la consola para diagnosticar el mapa sin instrumentar
+    // nada: `__vdcMap.getSource('route')` y compania.
+    (window as unknown as { __vdcMap?: MLMap }).__vdcMap = m;
+
     return () => {
       ro.disconnect();
       m.remove();

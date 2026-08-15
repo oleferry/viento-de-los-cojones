@@ -510,9 +510,24 @@ export default function Planner() {
           </button>
 
           {error && (
-            <p className="rise rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[0.78rem] leading-snug text-red-200">
-              {error}
-            </p>
+            <div className="rise rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[0.78rem] leading-snug text-red-200">
+              <p>{error}</p>
+              {/^(OSRM|ORS)/.test(error) && (
+                <p className="mt-1.5 text-[0.72rem] text-red-200/70">
+                  El servidor de rutas está saturado. Prueba otra vez en un
+                  minuto, o configura una clave gratuita de{" "}
+                  <a
+                    href="https://openrouteservice.org/dev/#/signup"
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="underline underline-offset-2"
+                  >
+                    OpenRouteService
+                  </a>{" "}
+                  para tener cupo propio.
+                </p>
+              )}
+            </div>
           )}
 
           {result && shown && (

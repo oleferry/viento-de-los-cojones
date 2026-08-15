@@ -77,7 +77,10 @@ export function speedFor(
   rho = r.rho
 ): number {
   let lo = 0.5; // 1.8 km/h: por debajo de esto se anda, no se pedalea
-  let hi = 25; // 90 km/h
+  // 70 km/h. Nadie sigue apretando por encima de eso: se deja de pedalear y se
+  // baja a rueda libre. Sin este tope el modelo se inventa bajadas a 90 y una
+  // ruta con desnivel salia mas rapida que la misma en llano.
+  let hi = 19.4;
   if (powerFor(hi, headwind, grade, r, cda, rho) < powerW) return hi;
   if (powerFor(lo, headwind, grade, r, cda, rho) > powerW) return lo;
   for (let i = 0; i < 40; i++) {
