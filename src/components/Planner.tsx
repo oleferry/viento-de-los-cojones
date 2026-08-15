@@ -755,7 +755,9 @@ export default function Planner() {
           </button>
           </div>
 
-          <InstalarApp />
+          <div className={ocultaEnMovil}>
+            <InstalarApp />
+          </div>
 
           {error && (
             <div className="rise rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[0.78rem] leading-snug text-red-200">
