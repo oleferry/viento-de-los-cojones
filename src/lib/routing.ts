@@ -348,6 +348,8 @@ function routeWith(
 
 export interface RouteResult extends RouteGeometry {
   provider: Provider;
+  /** Por que fallaron los proveedores que se probaron antes, si fallo alguno. */
+  fallbacks?: string[];
 }
 
 /**
@@ -363,12 +365,18 @@ export async function route(
 ): Promise<RouteResult> {
   if (waypoints.length < 2) throw new RoutingError("Hacen falta al menos 2 puntos");
   let last: unknown;
+  const fallbacks: string[] = [];
   for (const provider of chain) {
     try {
       const geom = await withRetry(() => routeWith(provider, waypoints, surface, signal));
-      return { ...geom, provider };
+      return { ...geom, provider, fallbacks: fallbacks.length ? fallbacks : undefined };
     } catch (err) {
       last = err;
+      // Guardamos el motivo: si toda la cadena acaba cayendo en el ultimo
+      // proveedor, sin esto no hay forma de saber que le pasaba al primero.
+      fallbacks.push(
+        `${provider}: ${(err instanceof Error ? err.message : String(err)).slice(0, 220)}`
+      );
       if (signal?.aborted) break;
     }
   }

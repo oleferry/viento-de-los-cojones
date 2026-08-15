@@ -154,6 +154,7 @@ export async function plan(
     routingCalls++;
     const geom = await limit(() => route([req.start, req.end!], req.surface, chain, signal));
     usedProvider = geom.provider;
+    if (geom.fallbacks?.length) warnings.push(...geom.fallbacks);
     shapes.push(buildShape("directa", "Ruta directa", geom));
 
     // Variantes: forzamos un rodeo lateral para tener alternativas que el
@@ -213,6 +214,9 @@ export async function plan(
     settled.forEach((r, i) => {
       if (r.status !== "fulfilled") return;
       usedProvider = r.value.provider;
+      for (const f of r.value.fallbacks ?? []) {
+        if (!warnings.includes(f)) warnings.push(f);
+      }
       const ratio = r.value.distanceM / targetM;
       if (ratio < 0.6 || ratio > 1.6) return; // el router se fue por los cerros
       shapes.push(

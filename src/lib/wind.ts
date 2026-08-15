@@ -151,9 +151,25 @@ export async function fetchWindField(
   // La prevision se actualiza como mucho cada hora, asi que cachear 15 minutos
   // no pierde nada de frescura y ahorra la mayoria de las llamadas cuando se
   // reajusta el plan (cambiar de hora, de firme o de perfil).
-  const res = await fetch(url.toString(), { signal, next: { revalidate: 900 } });
-  if (!res.ok) {
-    throw new Error(`Open-Meteo respondio ${res.status}: ${await res.text()}`);
+  //
+  // Open-Meteo limita por minuto ademas de por dia, y devuelve 429 con un
+  // "prueba en un minuto". Como la ventana es corta, un par de reintentos
+  // cortos la salvan casi siempre; sin ellos, el plan entero se cae por una
+  // rafaga de peticiones.
+  let res: Response | null = null;
+  for (let intento = 0; intento < 3; intento++) {
+    res = await fetch(url.toString(), { signal, next: { revalidate: 900 } });
+    if (res.ok) break;
+    if (res.status !== 429 || intento === 2) break;
+    await new Promise((r) => setTimeout(r, 1200 * (intento + 1)));
+  }
+  if (!res || !res.ok) {
+    const cuerpo = res ? await res.text() : "";
+    throw new Error(
+      res?.status === 429
+        ? "El servicio de meteorología está limitando las peticiones. Espera un minuto y vuelve a intentarlo."
+        : `Open-Meteo respondio ${res?.status}: ${cuerpo.slice(0, 200)}`
+    );
   }
   const raw = await res.json();
   const list: any[] = Array.isArray(raw) ? raw : [raw];
