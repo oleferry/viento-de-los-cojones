@@ -367,6 +367,14 @@ export async function plan(
     );
     if (enDistancia.length >= 2) quedarse(enDistancia);
 
+    /**
+     * Criterio de firme que deben cumplir los candidatos. Se guarda como
+     * predicado porque hay una segunda tanda de bucles mas abajo, y sin esto
+     * se colaban sin pasar por el filtro: pidiendo camino bajaba del 34% de
+     * tierra al 14% por un candidato nuevo que era casi todo asfalto.
+     */
+    let cumpleFirme: (s: Shaped) => boolean = () => true;
+
     if (avoidUnpaved) {
       const conDato = shapes.filter((s) => s.geometry.unpavedFrac != null);
       if (conDato.length) {
@@ -377,12 +385,14 @@ export async function plan(
         );
         if (asfaltadas.length) {
           quedarse(asfaltadas);
+          cumpleFirme = (s) => (s.geometry.unpavedFrac ?? 1) <= MAX_UNPAVED;
         } else {
           const mejor = Math.min(...conDato.map((s) => s.geometry.unpavedFrac ?? 1));
           const cerca = conDato.filter(
             (s) => (s.geometry.unpavedFrac ?? 1) <= mejor + 0.01
           );
           quedarse(cerca);
+          cumpleFirme = (s) => (s.geometry.unpavedFrac ?? 1) <= mejor + 0.01;
           warnings.push(
             `Desde ahí no sale ningún bucle de esa distancia sin pisar algo de camino: el mejor lleva un ${(mejor * 100).toFixed(1)}% sin asfaltar.`
           );
@@ -398,7 +408,10 @@ export async function plan(
           const conTierra = conDato.filter(
             (s) => (s.geometry.unpavedFrac ?? 0) >= mejor * 0.6
           );
-          if (conTierra.length) quedarse(conTierra);
+          if (conTierra.length) {
+            quedarse(conTierra);
+            cumpleFirme = (s) => (s.geometry.unpavedFrac ?? 0) >= mejor * 0.6;
+          }
         }
       }
     }
@@ -427,7 +440,6 @@ export async function plan(
         if (r.status !== "fulfilled") return;
         const ratio = r.value.distanceM / targetM;
         if (ratio < 0.75 || ratio > 1.3) return;
-        if (avoidUnpaved && (r.value.unpavedFrac ?? 0) > MAX_UNPAVED) return;
         const heading = initialHeading(r.value.coords);
         const s = buildShape(
           `rt2-${i}`,
@@ -435,7 +447,8 @@ export async function plan(
           r.value,
           heading
         );
-        if (s.vueltas < minVueltas) nuevas.push(s);
+        // Tienen que cumplir el mismo criterio de firme que los ya elegidos.
+        if (s.vueltas < minVueltas && cumpleFirme(s)) nuevas.push(s);
       });
       if (nuevas.length) {
         minVueltas = Math.min(...nuevas.map((s) => s.vueltas));
