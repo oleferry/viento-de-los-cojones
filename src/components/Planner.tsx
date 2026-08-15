@@ -10,6 +10,8 @@ import Outlook from "./Outlook";
 import RiderSheet from "./RiderSheet";
 import GroupPicker from "./GroupPicker";
 import TrackImport from "./TrackImport";
+import AccountBar, { useCuenta } from "./AccountBar";
+import SavedRoutes from "./SavedRoutes";
 import { downloadGPX } from "@/lib/gpx";
 import type { ImportedTrack } from "@/lib/gpxImport";
 import {
@@ -100,6 +102,9 @@ export default function Planner() {
   const [mapTheme, setMapTheme] = useState<MapTheme>("dark");
   const [sheetOpen, setSheetOpen] = useState(false);
   const inflight = useRef<AbortController | null>(null);
+  const { cuenta, recargar } = useCuenta();
+  const conSesion = !!cuenta?.user;
+  const [guardando, setGuardando] = useState<"no" | "si" | "hecho">("no");
 
   // --- perfil persistido ---------------------------------------------------
   useEffect(() => {
@@ -118,6 +123,59 @@ export default function Planner() {
       /* almacenamiento no disponible */
     }
   }, [setup]);
+
+  /**
+   * Con sesion, la cuenta manda sobre lo guardado en el navegador: es lo que
+   * hace que el perfil sea el mismo en el movil y en el ordenador. El
+   * localStorage se queda como respaldo para quien no entra.
+   */
+  const perfilCargado = useRef(false);
+  useEffect(() => {
+    if (!cuenta?.profile || perfilCargado.current) return;
+    perfilCargado.current = true;
+    const p = cuenta.profile;
+    const bici = cuenta.bikes?.find((b) => b.isDefault) ?? cuenta.bikes?.[0];
+    setSetup((prev) => ({
+      ...prev,
+      heightCm: p.heightCm,
+      massKg: p.massKg,
+      ftpW: p.ftpW,
+      intensity: p.intensity,
+      position: p.position,
+      ...(bici
+        ? {
+            frame: bici.frame,
+            wheels: bici.wheels,
+            tyres: bici.tyres,
+            clothing: bici.clothing,
+            helmet: bici.helmet,
+            luggage: bici.luggage,
+            bikeKg: bici.bikeKg,
+            extraKg: bici.extraKg,
+          }
+        : {}),
+    }));
+  }, [cuenta]);
+
+  // Y al reves: los cambios del perfil suben a la cuenta, con retardo para no
+  // mandar una peticion por cada tecla del FTP.
+  useEffect(() => {
+    if (!conSesion || !perfilCargado.current) return;
+    const t = setTimeout(() => {
+      fetch("/api/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          heightCm: setup.heightCm,
+          massKg: setup.massKg,
+          ftpW: setup.ftpW,
+          intensity: setup.intensity,
+          position: setup.position,
+        }),
+      }).catch(() => {});
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [setup, conSesion]);
 
   // El grupo se recuerda aparte del perfil: cambia de una salida a otra.
   useEffect(() => {
@@ -385,6 +443,17 @@ export default function Planner() {
             </a>
           </header>
 
+          <AccountBar cuenta={cuenta} onRecargar={recargar} />
+
+          <SavedRoutes
+            activo={conSesion}
+            onCargar={(nombre, coords) => {
+              setTrack({ name: nombre, coords, hasElevation: coords[0]?.length > 2 });
+              setShape("importada");
+              setResult(null);
+            }}
+          />
+
           {/* --- salida / llegada --- */}
           <div className="space-y-3">
             <div className="seg grid-cols-3">
@@ -618,6 +687,39 @@ export default function Planner() {
                 setup.intensity,
                 shown.evaluation.timeS / 3600
               )}
+              guardar={
+                conSesion
+                  ? {
+                      estado: guardando,
+                      onGuardar: async () => {
+                        setGuardando("si");
+                        try {
+                          await fetch("/api/routes", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              name:
+                                shape === "importada" && track
+                                  ? track.name
+                                  : `${(shown.geometry.distanceM / 1000).toFixed(0)} km desde ${
+                                      startText || "aquí"
+                                    }`,
+                              kind: shape === "importada" ? "imported" : "planned",
+                              distanceM: shown.geometry.distanceM,
+                              ascentM: shown.geometry.ascentM ?? null,
+                              coords: shown.geometry.coords,
+                              meta: { surface, windMode },
+                            }),
+                          });
+                          setGuardando("hecho");
+                          setTimeout(() => setGuardando("no"), 2200);
+                        } catch {
+                          setGuardando("no");
+                        }
+                      },
+                    }
+                  : undefined
+              }
             />
           )}
         </div>
@@ -717,6 +819,7 @@ function Results({
   busy,
   shareUrl,
   intensityWarning,
+  guardar,
 }: {
   result: PlanResponse;
   shown: Candidate;
@@ -727,6 +830,8 @@ function Results({
   busy: boolean;
   shareUrl: string;
   intensityWarning: string | null;
+  /** Solo con sesion: guardar la ruta en la cuenta. */
+  guardar?: { estado: "no" | "si" | "hecho"; onGuardar: () => void };
 }) {
   const [copied, setCopied] = useState(false);
   const ev = shown.evaluation;
@@ -917,6 +1022,20 @@ function Results({
           {copied ? "¡Copiado!" : "Copiar enlace"}
         </button>
       </div>
+
+      {guardar && (
+        <button
+          className="btn w-full"
+          disabled={guardar.estado === "si"}
+          onClick={guardar.onGuardar}
+        >
+          {guardar.estado === "si"
+            ? "Guardando…"
+            : guardar.estado === "hecho"
+              ? "Guardada en tu cuenta"
+              : "Guardar ruta"}
+        </button>
+      )}
 
       <details className="text-[0.68rem] text-[var(--color-faint)]">
         <summary className="cursor-pointer select-none hover:text-[var(--color-muted)]">

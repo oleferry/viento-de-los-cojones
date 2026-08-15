@@ -153,6 +153,42 @@ Así que **sin clave la app funciona entera**: lo único que aporta la clave de
 ORS es el desglose de firme (% de asfalto) y un cupo propio que no depende de
 lo cargados que estén los servidores públicos.
 
+## Cuentas (opcional)
+
+Nada de esto hace falta para planificar una ruta. **Sin base de datos la app
+funciona exactamente igual** y guarda el perfil en el navegador; la cuenta sólo
+añade llevarte el perfil, las bicis y las rutas de un dispositivo a otro. Es una
+decisión de diseño: una herramienta que te dice si vas a comer viento no puede
+pedirte que te registres para usarla.
+
+Cuando quieras activarlas:
+
+```bash
+# 1. Base de datos — en Vercel: Storage → Create Database → Postgres
+npx vercel env pull .env.local
+
+# 2. Secreto de sesión
+npx auth secret
+
+# 3. Tablas (idempotente, se puede repetir)
+npm run db:setup
+```
+
+Y al menos un proveedor de acceso, en las variables del proyecto:
+
+| Proveedor | Variables | Dónde |
+|---|---|---|
+| Google | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | [Google Cloud Console](https://console.cloud.google.com/apis/credentials), con redirección a `https://TU-DOMINIO/api/auth/callback/google` |
+| Enlace por correo | `AUTH_RESEND_KEY`, `AUTH_EMAIL_FROM` | [Resend](https://resend.com), nivel gratuito |
+
+Los proveedores se encienden solos según las credenciales que existan: con los
+dos configurados salen los dos botones, con uno sale uno, y sin ninguno la
+página de acceso lo dice en vez de fallar.
+
+Se guardan **el perfil** (cuerpo y motor), **las bicis** (cada una con su CdA y
+su Crr, porque la de carretera y la de gravel no tienen nada que ver) y **las
+rutas**, trazadas o importadas.
+
 ## Poner en marcha
 
 ```bash
