@@ -21,12 +21,22 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
   },
   twitter: { card: "summary_large_image" },
+  // iOS no lee el manifest para esto: hay que decirselo aparte.
+  appleWebApp: {
+    capable: true,
+    title: "Viento",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0d1117",
+  themeColor: "#080b11",
   width: "device-width",
   initialScale: 1,
+  // La app ocupa la pantalla entera y el mapa ya tiene su propio zoom: el zoom
+  // del navegador solo descoloca el panel.
+  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
