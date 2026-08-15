@@ -486,12 +486,24 @@ export default function Planner() {
         </button>
 
         <div className="space-y-4 px-4 pb-6 md:px-5 md:pt-5">
+          {/*
+            Con resultado en movil la cabecera se encoge: la pantalla es corta y
+            el nombre de la app no aporta nada frente a saber cuanto vas a tardar.
+          */}
           <header className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-[1.05rem] font-bold leading-tight tracking-tight">
+              <h1
+                className={`font-bold leading-tight tracking-tight ${
+                  result ? "text-[0.9rem] md:text-[1.05rem]" : "text-[1.05rem]"
+                }`}
+              >
                 Viento de los cojones
               </h1>
-              <p className="mt-0.5 text-[0.72rem] leading-snug text-[var(--color-faint)]">
+              <p
+                className={`mt-0.5 text-[0.72rem] leading-snug text-[var(--color-faint)] ${
+                  result ? "hidden md:block" : ""
+                }`}
+              >
                 Rutas trazadas según sopla, hora a hora.
               </p>
             </div>
@@ -700,7 +712,7 @@ export default function Planner() {
           <button
             type="button"
             onClick={() => setProfileOpen(true)}
-            className="card flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:border-white/20"
+            className={`card flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:border-white/20 ${ocultaEnMovil}`}
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
               style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
@@ -722,7 +734,7 @@ export default function Planner() {
           </button>
 
           <button
-            className="btn btn-primary w-full !py-2.5 !text-[0.9rem]"
+            className={`btn btn-primary w-full !py-2.5 !text-[0.9rem] ${ocultaEnMovil}`}
             disabled={!canPlan || busy}
             onClick={() => run()}
           >

@@ -210,17 +210,33 @@ input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
+  /* La barra sigue siendo fina, pero el control ocupa 44 px de alto para que
+     se pueda agarrar con el dedo sin cazar un hilo de 4 px. */
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  outline: none;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  /* Centrado sobre una barra de 4 px. */
+  margin-top: -8px;
   border-radius: 50%;
   background: #ff8a3d;
   border: 2px solid #12161d;
@@ -229,8 +245,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: #ff8a3d;
   border: 2px solid #12161d;
