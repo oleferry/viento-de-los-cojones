@@ -407,7 +407,42 @@ export async function plan(
     // sentido. No con "las que tengan dos o mas sin ellos": mas vale una sola
     // ruta sin giros que cuatro para elegir, todas con un 180 en mitad de la
     // nada.
-    const minVueltas = Math.min(...shapes.map((s) => s.vueltas));
+    let minVueltas = Math.min(...shapes.map((s) => s.vueltas));
+
+    // Si NINGUNA se libra, merece la pena gastar unas peticiones mas buscando
+    // una limpia. Solo en ese caso: en el normal no cuesta nada.
+    if (minVueltas > 0 && usaRoundTrip) {
+      const extra = await Promise.allSettled(
+        [41, 53, 67].map((seed) => {
+          routingCalls++;
+          return limit(() =>
+            route([req.start], req.surface, ["ors"], signal, {
+              roundTrip: { lengthM: targetM, points: 5, seed },
+            })
+          );
+        })
+      );
+      const nuevas: Shaped[] = [];
+      extra.forEach((r, i) => {
+        if (r.status !== "fulfilled") return;
+        const ratio = r.value.distanceM / targetM;
+        if (ratio < 0.75 || ratio > 1.3) return;
+        if (avoidUnpaved && (r.value.unpavedFrac ?? 0) > MAX_UNPAVED) return;
+        const heading = initialHeading(r.value.coords);
+        const s = buildShape(
+          `rt2-${i}`,
+          heading != null ? `Salida hacia ${cardinalOf(heading)} (${heading}°)` : "Bucle",
+          r.value,
+          heading
+        );
+        if (s.vueltas < minVueltas) nuevas.push(s);
+      });
+      if (nuevas.length) {
+        minVueltas = Math.min(...nuevas.map((s) => s.vueltas));
+        shapes.push(...nuevas);
+      }
+    }
+
     quedarse(shapes.filter((s) => s.vueltas === minVueltas));
 
     // Y por ultimo lo que se pise a si mismo.
