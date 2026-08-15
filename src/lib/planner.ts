@@ -336,10 +336,18 @@ export async function plan(
       );
     }
 
+    /**
+     * Sustituye la lista de candidatos por `lista`.
+     *
+     * La copia no es un adorno: `lista` suele ser un filtrado de `shapes`, pero
+     * si alguna vez ES `shapes`, vaciarlo antes de volcarlo lo dejaba a cero y
+     * el plan entero moria con "no se pudo trazar ninguna ruta".
+     */
     const quedarse = (lista: Shaped[]) => {
       if (!lista.length) return;
+      const copia = lista.slice();
       shapes.length = 0;
-      shapes.push(...lista);
+      shapes.push(...copia);
     };
 
     /*
@@ -354,15 +362,10 @@ export async function plan(
      * Poner los giros antes que el firme dejaba a "camino" sin caminos: se
      * descartaban las rutas de tierra por un giro y quedaba una de asfalto.
      */
-    quedarse(
-      shapes.filter(
-        (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
-      ).length >= 2
-        ? shapes.filter(
-            (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
-          )
-        : shapes
+    const enDistancia = shapes.filter(
+      (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
     );
+    if (enDistancia.length >= 2) quedarse(enDistancia);
 
     if (avoidUnpaved) {
       const conDato = shapes.filter((s) => s.geometry.unpavedFrac != null);
