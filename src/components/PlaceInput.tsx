@@ -37,12 +37,20 @@ export default function PlaceInput({
   const box = useRef<HTMLDivElement>(null);
   const id = useId();
   const skipNext = useRef(false);
+  /**
+   * Solo buscamos si el texto lo ha escrito la persona. Si viene de fuera (un
+   * enlace compartido, o el punto marcado en el mapa) el sitio ya esta
+   * resuelto, y lanzar la busqueda solo servia para abrir el desplegable
+   * encima del panel nada mas entrar.
+   */
+  const typed = useRef(false);
 
   useEffect(() => {
     if (skipNext.current) {
       skipNext.current = false;
       return;
     }
+    if (!typed.current) return;
     if (text.trim().length < 3) {
       setHits([]);
       return;
@@ -80,6 +88,7 @@ export default function PlaceInput({
 
   const choose = (h: Hit) => {
     skipNext.current = true;
+    typed.current = false;
     onChange(h.label, [h.lon, h.lat]);
     setOpen(false);
     setHits([]);
@@ -107,7 +116,10 @@ export default function PlaceInput({
           placeholder={placeholder}
           value={text}
           autoComplete="off"
-          onChange={(e) => onChange(e.target.value, null)}
+          onChange={(e) => {
+            typed.current = true;
+            onChange(e.target.value, null);
+          }}
           onFocus={() => hits.length && setOpen(true)}
           onKeyDown={(e) => {
             if (!open || !hits.length) return;

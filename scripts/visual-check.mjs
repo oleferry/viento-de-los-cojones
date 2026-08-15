@@ -164,6 +164,7 @@ await page.evaluate(() => {
   document.body.click();
 });
 await sleep(600);
+await page.screenshot({ path: OUT.replace(/\.png$/, "-completo.png") });
 await page.screenshot({
   path: OUT.replace(/\.png$/, "-mapa.png"),
   clip: { x: 440, y: 0, width: 920, height: 900 },
