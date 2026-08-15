@@ -349,8 +349,13 @@ export async function plan(
     // Despues, fuera las que se dan la vuelta en mitad del campo. Esto va
     // ANTES que el solape total, porque un solo pico de ida y vuelta arruina
     // la salida aunque en porcentaje del total apenas se note.
-    const sinVueltas = shapes.filter((s) => s.vueltas === 0);
-    if (sinVueltas.length >= 2) {
+    //
+    // Nos quedamos con el MINIMO de cambios de sentido, no con "las que tengan
+    // dos o mas sin ellos": mas vale una sola ruta sin giros que cuatro para
+    // elegir, todas con un 180 en mitad de la nada.
+    const minVueltas = Math.min(...shapes.map((s) => s.vueltas));
+    const sinVueltas = shapes.filter((s) => s.vueltas === minVueltas);
+    if (sinVueltas.length) {
       shapes.length = 0;
       shapes.push(...sinVueltas);
     }
