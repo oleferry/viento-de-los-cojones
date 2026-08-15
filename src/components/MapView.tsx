@@ -39,7 +39,7 @@ const STYLE: StyleSpecification = {
       id: "carto",
       type: "raster",
       source: "carto",
-      paint: { "raster-opacity": 0.82, "raster-saturation": -0.2 },
+      paint: { "raster-opacity": 1, "raster-brightness-min": 0.04 },
     },
   ],
 };
@@ -170,6 +170,12 @@ export default function MapView({
     );
     m.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
 
+    m.on("error", (e) => {
+      // Sin esto los fallos de teselas o de estilo se tragan en silencio y el
+      // mapa aparece en negro sin decir por que.
+      console.error("[mapa]", e.error ?? e);
+    });
+
     m.on("load", () => {
       if (!m.hasImage("wind-arrow")) m.addImage("wind-arrow", arrowImage(), { pixelRatio: 3 });
 
@@ -292,7 +298,16 @@ export default function MapView({
       ]);
     });
 
+    // MapLibre mide el contenedor una sola vez al crearse. Si en ese momento el
+    // layout aun no ha cuajado (fuentes, dvh en movil, el panel abriendose) el
+    // canvas se queda con un tamano equivocado y el mapa aparece recortado.
+    // Observamos el contenedor y le forzamos un resize cada vez que cambia.
+    const ro = new ResizeObserver(() => m.resize());
+    ro.observe(holder.current);
+    requestAnimationFrame(() => m.resize());
+
     return () => {
+      ro.disconnect();
       m.remove();
       map.current = null;
       ready.current = false;
@@ -395,6 +410,6 @@ export default function MapView({
     });
   }, [hoverKm, best]);
 
-  return <div ref={holder} className="absolute inset-0" />;
+  return <div ref={holder} className="absolute inset-0 h-full w-full" />;
 }
 
