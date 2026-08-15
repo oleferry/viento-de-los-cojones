@@ -92,6 +92,37 @@ body {
   box-shadow: 0 0 0 3px rgba(255, 138, 61, 0.13);
 }
 
+/*
+ * La lista desplegable de un <select> la dibuja el sistema, no la pagina: no
+ * hereda el fondo oscuro del control, pero SI heredaba el color de texto claro.
+ * Resultado: opciones blancas sobre blanco, invisibles salvo la que tenia el
+ * raton encima. Hay que darles color propio.
+ */
+select.field option,
+select.field optgroup {
+  background-color: #12161d;
+  color: #eef2f7;
+}
+
+select.field option:checked {
+  background-color: #ff8a3d;
+  color: #12161d;
+}
+
+/* Reserva sitio para la flecha del select y evita la nativa duplicada. */
+select.field {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 1.9rem;
+  background-image: linear-gradient(45deg, transparent 50%, #93a1b3 50%),
+    linear-gradient(135deg, #93a1b3 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.05rem) calc(50% + 2px),
+    calc(100% - 0.7rem) calc(50% + 2px);
+  background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
+
 .seg {
   display: grid;
   gap: 0.2rem;

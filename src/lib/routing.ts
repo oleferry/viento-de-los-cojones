@@ -10,6 +10,14 @@ const UA = "viento-de-los-cojones/0.1 (planificador de rutas ciclistas)";
 
 /** Codigos de firme de ORS que consideramos pavimento rodable con bici de carretera. */
 const ORS_PAVED = new Set([1, 3, 4, 5, 6, 7, 14]);
+/**
+ * Codigos que son tierra sin discusion. El resto (sobre todo el 0,
+ * "desconocido") NO es lo mismo: en Espana muchisimas carreteras comarcales no
+ * llevan la etiqueta `surface` en OpenStreetMap, y contarlas como tierra hacia
+ * que una ruta enteramente asfaltada apareciese como "89% asfalto" y no pasara
+ * el filtro. Lo que hay que exigir es que no haya NADA de esto.
+ */
+const ORS_UNPAVED = new Set([2, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18]);
 const ORS_SURFACE_NAMES: Record<number, string> = {
   0: "desconocido",
   1: "pavimentado",
@@ -272,18 +280,23 @@ async function routeORS(
 
   let surfaceBreakdown: Record<string, number> | undefined;
   let pavedFrac: number | undefined;
+  let unpavedFrac: number | undefined;
   const summary = props.extras?.surface?.summary;
   if (Array.isArray(summary) && summary.length) {
     surfaceBreakdown = {};
     let paved = 0;
+    let unpaved = 0;
     let total = 0;
     for (const row of summary) {
       const name = ORS_SURFACE_NAMES[row.value] ?? `codigo ${row.value}`;
-      surfaceBreakdown[name] = (surfaceBreakdown[name] ?? 0) + (row.distance ?? 0);
-      total += row.distance ?? 0;
-      if (ORS_PAVED.has(row.value)) paved += row.distance ?? 0;
+      const d = row.distance ?? 0;
+      surfaceBreakdown[name] = (surfaceBreakdown[name] ?? 0) + d;
+      total += d;
+      if (ORS_PAVED.has(row.value)) paved += d;
+      else if (ORS_UNPAVED.has(row.value)) unpaved += d;
     }
     pavedFrac = total > 0 ? paved / total : undefined;
+    unpavedFrac = total > 0 ? unpaved / total : undefined;
   }
 
   return {
@@ -292,6 +305,7 @@ async function routeORS(
     ascentM: props.ascent,
     surfaceBreakdown,
     pavedFrac,
+    unpavedFrac,
   };
 }
 

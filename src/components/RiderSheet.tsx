@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   CLOTHING,
   DEFAULT_SETUP,
@@ -252,6 +252,23 @@ function NumberField({
   label: string; unit: string; value: number; min: number; max: number;
   step?: number; onChange: (v: number) => void;
 }) {
+  /**
+   * El campo guarda TEXTO mientras se escribe y solo se recorta al salir.
+   * Recortando en cada pulsacion era imposible teclear: al borrar para poner
+   * 250, el "" se convertia en 0, saltaba al minimo y machacaba el cursor, asi
+   * que solo se podia usar con las flechitas.
+   */
+  const [texto, setTexto] = useState<string | null>(null);
+  const mostrado = texto ?? String(value);
+
+  const confirmar = () => {
+    const v = Number(mostrado);
+    setTexto(null);
+    if (Number.isFinite(v) && mostrado.trim() !== "") {
+      onChange(Math.max(min, Math.min(max, v)));
+    }
+  };
+
   return (
     <label className="block">
       <span className="label mb-1.5 block">
@@ -259,14 +276,19 @@ function NumberField({
       </span>
       <input
         type="number"
+        inputMode="decimal"
         className="field num"
-        value={value}
+        value={mostrado}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => {
-          const v = Number(e.target.value);
-          if (Number.isFinite(v)) onChange(Math.max(min, Math.min(max, v)));
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
         }}
       />
     </label>

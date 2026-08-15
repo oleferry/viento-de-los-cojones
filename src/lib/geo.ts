@@ -157,6 +157,56 @@ export function overlapFraction(coords: number[][], cellM = 120): number {
   return total > 0 ? repeated / total : 0;
 }
 
+/**
+ * Cuenta los cambios de sentido: puntos donde la ruta se da la vuelta y
+ * desanda lo andado.
+ *
+ * La fraccion total de ruta repetida no los detecta. Un pico de un kilometro
+ * en una ruta de 78 son un 2,5%, pasa cualquier filtro razonable, y sin embargo
+ * es exactamente lo que arruina la salida: llegas a un sitio, frenas, giras 180
+ * en mitad del campo y te vuelves por donde has venido.
+ *
+ * Se compara el rumbo de entrada con el de salida promediados sobre `ventanaM`
+ * metros a cada lado, para no confundir un giro de verdad con la curva cerrada
+ * de una carretera. Se ignoran los primeros y ultimos metros, porque en un
+ * bucle salir y volver al mismo portal es justo lo que se pide.
+ */
+export function uTurns(coords: number[][], ventanaM = 220): number {
+  const pts = resample(coords, 60);
+  if (pts.length < 8) return 0;
+
+  const paso = Math.max(2, Math.round(ventanaM / 60));
+  const total = polylineLength(pts);
+  let recorrido = 0;
+  let cuenta = 0;
+  let ultimo = -Infinity;
+
+  for (let i = paso; i < pts.length - paso; i++) {
+    recorrido += haversine(
+      [pts[i - 1][0], pts[i - 1][1]],
+      [pts[i][0], pts[i][1]]
+    );
+    // Los extremos no cuentan: en un bucle se sale y se vuelve al mismo sitio.
+    if (recorrido < ventanaM * 2 || total - recorrido < ventanaM * 2) continue;
+    // Ni dos veces el mismo giro.
+    if (recorrido - ultimo < ventanaM * 2) continue;
+
+    const entra = bearing(
+      [pts[i - paso][0], pts[i - paso][1]],
+      [pts[i][0], pts[i][1]]
+    );
+    const sale = bearing(
+      [pts[i][0], pts[i][1]],
+      [pts[i + paso][0], pts[i + paso][1]]
+    );
+    if (Math.abs(angleDiff(entra, sale)) > 140) {
+      cuenta++;
+      ultimo = recorrido;
+    }
+  }
+  return cuenta;
+}
+
 /** Caja envolvente [minLon, minLat, maxLon, maxLat]. */
 export function bbox(coords: number[][]): [number, number, number, number] {
   let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;

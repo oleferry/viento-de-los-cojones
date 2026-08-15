@@ -19,6 +19,7 @@ import {
   resample,
   samplingGrid,
   toSegments,
+  uTurns,
 } from "./geo";
 import { DEFAULT_RIDER, calmTime, evaluateRoute } from "./physics";
 import { fetchElevations, fetchWindField } from "./wind";
@@ -67,6 +68,8 @@ interface Shaped {
   label: string;
   /** Fraccion de la ruta que se pisa dos veces. */
   overlap: number;
+  /** Cuantas veces la ruta se da la vuelta en mitad del recorrido. */
+  vueltas: number;
 }
 
 interface Scored {
@@ -145,12 +148,15 @@ export async function plan(
    */
   const avoidUnpaved = req.surface === "carretera";
   /**
-   * Umbral para descartar de plano. En Tierra de Campos casi cualquier bucle
-   * cruza algun tramo de concentracion parcelaria, asi que exigir el 100%
-   * dejaria sin rutas; se descarta lo que no llegue aqui y, entre lo que
-   * queda, la puntuacion premia el asfalto.
+   * Tierra tolerada con bici de carretera: practicamente nada. El margen es
+   * solo para no descartar una ruta por veinte metros de acceso a un pueblo.
+   *
+   * Se mide sobre el firme CONFIRMADO como tierra, no sobre "lo que no consta
+   * como asfalto": en OpenStreetMap muchisimas comarcales espanolas no llevan
+   * etiqueta de firme, y contarlas como camino hacia que una ruta enteramente
+   * asfaltada apareciese al 89%.
    */
-  const MIN_PAVED = 0.95;
+  const MAX_UNPAVED = 0.005;
 
   // --- 2. Candidatos geometricos -----------------------------------------
   // ORS gratuito limita por minuto ademas de por dia. Con 3 en vuelo las
@@ -177,6 +183,7 @@ export async function plan(
       segmentsFwd: toSegments(fwd),
       segmentsRev: toSegments(reverseCoords(fwd)),
       overlap: overlapFraction(geometry.coords),
+      vueltas: uTurns(geometry.coords),
     };
   };
 
@@ -339,38 +346,61 @@ export async function plan(
       shapes.push(...cerca);
     }
 
-    // Despues, fuera las que se pisan a si mismas.
+    // Despues, fuera las que se dan la vuelta en mitad del campo. Esto va
+    // ANTES que el solape total, porque un solo pico de ida y vuelta arruina
+    // la salida aunque en porcentaje del total apenas se note.
+    const sinVueltas = shapes.filter((s) => s.vueltas === 0);
+    if (sinVueltas.length >= 2) {
+      shapes.length = 0;
+      shapes.push(...sinVueltas);
+    }
+
+    // Y fuera las que se pisan a si mismas.
     const limpias = shapes.filter((s) => s.overlap <= MAX_OVERLAP);
     if (limpias.length >= 2) {
       shapes.length = 0;
       shapes.push(...limpias);
     }
 
-    // Y fuera las que meten tierra cuando se ha pedido carretera.
+    // Por ultimo el firme.
     if (avoidUnpaved) {
-      const asfaltadas = shapes.filter(
-        (s) => s.geometry.pavedFrac == null || s.geometry.pavedFrac >= MIN_PAVED
-      );
-      if (asfaltadas.length) {
-        shapes.length = 0;
-        shapes.push(...asfaltadas);
-      } else if (shapes.some((s) => s.geometry.pavedFrac != null)) {
-        // Si ninguno llega al umbral, el asfalto manda de forma lexicografica:
-        // nos quedamos con los que rondan al mejor y que el viento desempate
-        // entre ellos. Penalizarlo dentro de la puntuacion no bastaba —
-        // se avisaba de que el mejor tenia un 85% y se servia uno del 68%,
-        // porque una ventaja de viento se comia la penalizacion.
-        const mejor = Math.max(...shapes.map((s) => s.geometry.pavedFrac ?? 0));
-        const cerca = shapes.filter(
-          (s) => (s.geometry.pavedFrac ?? 0) >= mejor - 0.04
+      const conDato = shapes.filter((s) => s.geometry.unpavedFrac != null);
+      if (conDato.length) {
+        // Cero tierra. Nada de "casi todo asfalto": con cubierta de 25 un solo
+        // kilometro de camino ya te ha fastidiado la salida.
+        const asfaltadas = conDato.filter(
+          (s) => (s.geometry.unpavedFrac ?? 0) <= MAX_UNPAVED
         );
-        if (cerca.length) {
+        if (asfaltadas.length) {
+          shapes.length = 0;
+          shapes.push(...asfaltadas);
+        } else {
+          const mejor = Math.min(...conDato.map((s) => s.geometry.unpavedFrac ?? 1));
+          const cerca = conDato.filter(
+            (s) => (s.geometry.unpavedFrac ?? 1) <= mejor + 0.01
+          );
           shapes.length = 0;
           shapes.push(...cerca);
+          warnings.push(
+            `Desde ahí no sale ningún bucle de esa distancia sin pisar algo de camino: el mejor lleva un ${(mejor * 100).toFixed(1)}% sin asfaltar.`
+          );
         }
-        warnings.push(
-          `No hay ningún bucle de esa distancia enteramente asfaltado desde ahí: el mejor lleva un ${Math.round(mejor * 100)}% de asfalto.`
-        );
+      }
+    } else if (req.surface === "camino") {
+      // Al reves: si se ha pedido montana, que de verdad haya camino. Es
+      // preferencia y no obligacion, porque una gravel rueda por asfalto.
+      const conDato = shapes.filter((s) => s.geometry.unpavedFrac != null);
+      if (conDato.length >= 2) {
+        const mejor = Math.max(...conDato.map((s) => s.geometry.unpavedFrac ?? 0));
+        if (mejor > 0.1) {
+          const conTierra = conDato.filter(
+            (s) => (s.geometry.unpavedFrac ?? 0) >= mejor * 0.6
+          );
+          if (conTierra.length) {
+            shapes.length = 0;
+            shapes.push(...conTierra);
+          }
+        }
       }
     }
   }
@@ -475,11 +505,12 @@ export async function plan(
       // que no te hace desandar lo andado. El peso es alto a proposito, para
       // que gane a una diferencia moderada de viento.
       s.score += s.shape.overlap * 2.5;
-      // Con bici de carretera, cada metro de tierra pesa. Sin esto se avisaba
-      // de que el mejor bucle tenia un 90% de asfalto y acto seguido se elegia
-      // uno del 68%, porque el firme no entraba en la puntuacion.
+      // Un giro de 180 en mitad del campo se penaliza como lo que es: motivo
+      // de descarte. Solo llega aqui si no habia alternativa sin ellos.
+      s.score += s.shape.vueltas * 1.5;
+      // Con bici de carretera, cada metro de tierra pesa.
       if (avoidUnpaved) {
-        s.score += (1 - (s.shape.geometry.pavedFrac ?? 1)) * 3;
+        s.score += (s.shape.geometry.unpavedFrac ?? 0) * 8;
       }
     }
     list.sort((a, b) => a.score - b.score);
@@ -628,6 +659,7 @@ export async function plan(
       geometry: {
         ...s.shape.geometry,
         overlapFrac: round(s.shape.overlap, 3),
+        uTurns: s.shape.vueltas,
         ...(s.reversed ? { coords: reverseCoords(s.shape.geometry.coords) } : {}),
       },
       departure: new Date(s.departureMs).toISOString(),

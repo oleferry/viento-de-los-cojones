@@ -741,20 +741,38 @@ function Results({
         />
       </div>
 
-      {shown.geometry.pavedFrac != null && (
+      {shown.geometry.unpavedFrac != null && (
         <div className="card px-3 py-2">
           <div className="flex items-baseline justify-between">
             <span className="label">Firme</span>
             <span className="num text-[0.75rem] text-[var(--color-muted)]">
-              {Math.round(shown.geometry.pavedFrac * 100)}% asfalto
+              {shown.geometry.unpavedFrac < 0.005
+                ? "todo asfalto"
+                : `${(shown.geometry.unpavedFrac * 100).toFixed(
+                    shown.geometry.unpavedFrac < 0.1 ? 1 : 0
+                  )}% sin asfaltar`}
             </span>
           </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+          <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#4cc9f0] to-[#a78bfa]"
-              style={{ width: `${Math.round(shown.geometry.pavedFrac * 100)}%` }}
+              className="h-full bg-gradient-to-r from-[#4cc9f0] to-[#a78bfa]"
+              style={{ width: `${(1 - shown.geometry.unpavedFrac) * 100}%` }}
+            />
+            <div
+              className="h-full bg-[#b45309]"
+              style={{ width: `${shown.geometry.unpavedFrac * 100}%` }}
             />
           </div>
+          {shown.geometry.unpavedFrac >= 0.005 && (
+            <p className="mt-1.5 text-[0.64rem] leading-snug text-[var(--color-faint)]">
+              {(
+                (shown.geometry.unpavedFrac * shown.geometry.distanceM) /
+                1000
+              ).toFixed(1)}{" "}
+              km de camino confirmado. El resto es asfalto o vía sin etiquetar
+              en OpenStreetMap.
+            </p>
+          )}
         </div>
       )}
 

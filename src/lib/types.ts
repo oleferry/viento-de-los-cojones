@@ -155,8 +155,16 @@ export interface RouteGeometry {
   /** Reparto de firme en metros por categoria, si el proveedor lo aporta. */
   surfaceBreakdown?: Record<string, number>;
   pavedFrac?: number;
+  /**
+   * Fraccion CONFIRMADA como tierra. No es 1 - pavedFrac: el resto puede ser
+   * firme sin etiquetar en OpenStreetMap, que en carreteras comarcales
+   * espanolas es lo habitual.
+   */
+  unpavedFrac?: number;
   /** Fraccion de la ruta que se pisa dos veces (ida y vuelta por lo mismo). */
   overlapFrac?: number;
+  /** Giros de 180 en mitad del recorrido. */
+  uTurns?: number;
 }
 
 export interface Candidate {
