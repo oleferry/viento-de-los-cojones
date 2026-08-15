@@ -385,6 +385,34 @@ function routeWith(
   return routeOSRM(waypoints, signal);
 }
 
+/**
+ * Cache de geometrias en memoria.
+ *
+ * La geometria de una ruta NO depende del viento ni de la hora: para la misma
+ * salida, distancia y firme salen los mismos candidatos siempre. Sin esto,
+ * cambiar la hora de salida o el perfil de ciclista volvia a gastar ocho
+ * peticiones de enrutado, y el limite por minuto de ORS salta enseguida.
+ *
+ * Vive lo que viva la instancia (en serverless, mientras siga caliente). No es
+ * un cache fiable, es un ahorro oportunista, que es justo lo que hace falta.
+ */
+const geomCache = new Map<string, { at: number; geom: RouteGeometry; provider: Provider }>();
+const CACHE_TTL_MS = 20 * 60_000;
+const CACHE_MAX = 400;
+
+function cacheKey(
+  provider: Provider,
+  waypoints: LonLat[],
+  surface: Surface,
+  opts: RouteOptions
+): string {
+  const wp = waypoints.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join("|");
+  const rt = opts.roundTrip
+    ? `rt:${Math.round(opts.roundTrip.lengthM)}:${opts.roundTrip.points}:${opts.roundTrip.seed}`
+    : "";
+  return `${provider}|${surface}|${wp}|${rt}`;
+}
+
 export interface RouteResult extends RouteGeometry {
   provider: Provider;
   /** Por que fallaron los proveedores que se probaron antes, si fallo alguno. */
@@ -408,9 +436,24 @@ export async function route(
   }
   let last: unknown;
   const fallbacks: string[] = [];
+
+  // Si ya lo tenemos trazado, ni tocamos la red.
+  for (const provider of chain) {
+    const hit = geomCache.get(cacheKey(provider, waypoints, surface, opts));
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+      return { ...hit.geom, provider: hit.provider };
+    }
+  }
+
   for (const provider of chain) {
     try {
       const geom = await withRetry(() => routeWith(provider, waypoints, surface, signal, opts));
+      if (geomCache.size > CACHE_MAX) geomCache.clear();
+      geomCache.set(cacheKey(provider, waypoints, surface, opts), {
+        at: Date.now(),
+        geom,
+        provider,
+      });
       return { ...geom, provider, fallbacks: fallbacks.length ? fallbacks : undefined };
     } catch (err) {
       last = err;
