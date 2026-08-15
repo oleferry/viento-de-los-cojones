@@ -138,10 +138,39 @@ Clave gratuita de OpenRouteService en <https://openrouteservice.org/dev/#/signup
 1. Importa el repo en <https://vercel.com/new>.
 2. Framework: **Next.js** (se detecta solo). Sin ajustes de build.
 3. En *Settings → Environment Variables*, añade `ORS_API_KEY` si tienes clave.
+   Los cambios de variables solo entran con un despliegue nuevo.
 4. Deploy.
 
-El endpoint `/api/plan` está declarado con `maxDuration = 60`, suficiente para
-las ~15 peticiones de enrutado que hace una circular.
+### La región importa, y mucho
+
+`vercel.json` fija `cdg1` (París). No es un detalle: todas las fuentes de datos
+son europeas, y ejecutar las funciones en Washington multiplicaba los tiempos
+hasta agotar el límite de 60 s. Medido con `/api/diag`, que cronometra cada
+servicio **desde donde corre la función**:
+
+| Servicio | iad1 (Washington) | cdg1 (París) |
+|---|---|---|
+| Open-Meteo | 547 ms | 97 ms |
+| OSRM | 334 ms | 69 ms |
+| OpenRouteService | 494 ms | 138 ms |
+| BRouter | 11 975 ms | 12 560 ms |
+
+Con eso, un plan pasó de 60 s (y timeout) a **1,3 s**. BRouter no mejoró al
+cambiar de región: no era latencia de red, sino que su servidor público va
+sobrecargado calculando cada ruta en el momento. Por eso está el último de la
+cadena.
+
+Cronometrar desde un portátil no sirve: desde España BRouter tardaba 140 ms.
+
+### Límites y protecciones
+
+Cada petición a un proveedor se rinde a los 9 s y pasa al siguiente; el plan
+entero tiene un plazo de 38 s, muy por debajo del límite de la plataforma, para
+que un error salga **siempre como JSON**. Si se agota, la plataforma devolvería
+texto plano y el navegador fallaría con un `Unexpected token 'A'` que no dice
+nada del problema real.
+
+Cuando la cadena conmuta, el motivo del fallo aparece en `meta.warnings`.
 
 ## El worker de MapLibre
 
