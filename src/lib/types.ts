@@ -202,7 +202,7 @@ export interface PlanResponse {
     series: { time: string; speed10: number; fromDeg: number; gust: number }[];
   };
   meta: {
-    provider: "ors" | "osrm";
+    provider: "ors" | "brouter" | "osrm";
     profile: string;
     requestedKm: number;
     routingCalls: number;

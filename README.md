@@ -101,14 +101,27 @@ de un modelo concreto es una estimación.
 
 | Servicio | Para qué | Coste |
 |---|---|---|
-| [Open-Meteo](https://open-meteo.com/) | Viento horario, rachas, lluvia, altimetría | Gratis, sin clave, hasta 10.000 peticiones/día no comerciales |
-| [OpenRouteService](https://openrouteservice.org/) | Enrutado ciclista con perfiles y firme | Gratis con clave (≈2.000 peticiones/día) |
-| [OSRM de FOSSGIS](https://routing.openstreetmap.de/) | Enrutado de respaldo | Gratis, sin clave, uso moderado |
+| [Open-Meteo](https://open-meteo.com/) | Viento horario, rachas, lluvia, presión, altimetría | Gratis, sin clave, hasta 10.000 peticiones/día no comerciales |
+| [BRouter](https://brouter.de/) | Enrutado ciclista con perfiles y altimetría | Gratis, sin clave |
+| [OpenRouteService](https://openrouteservice.org/) | Enrutado con desglose de firme | Gratis con clave (≈2.000 peticiones/día) |
+| [OSRM de FOSSGIS](https://routing.openstreetmap.de/) | Último recurso | Gratis, sin clave |
 | [CARTO](https://carto.com/attributions) + OpenStreetMap | Teselas del mapa | Gratis con atribución |
 
-Sin clave de ORS la app **funciona igualmente** con OSRM: pierdes la distinción
-carretera/camino y el desglose de firme, y la altimetría se saca aparte de
-Open-Meteo.
+El enrutado va **en cadena y conmuta solo**: si el primero se cae o satura, se
+pasa al siguiente en vez de tumbar el plan. Sin clave el orden es BRouter →
+OSRM; con clave, OpenRouteService → BRouter → OSRM.
+
+Los perfiles de BRouter encajan casi uno a uno con lo que se pide:
+
+| Por dónde | BRouter | OpenRouteService |
+|---|---|---|
+| Carretera | `fastbike` | `cycling-road` |
+| Mixto | `trekking` | `cycling-regular` |
+| Camino | `gravel` | `cycling-mountain` |
+
+Así que **sin clave la app funciona entera**: lo único que aporta la clave de
+ORS es el desglose de firme (% de asfalto) y un cupo propio que no depende de
+lo cargados que estén los servidores públicos.
 
 ## Poner en marcha
 

@@ -23,8 +23,8 @@ import { DEFAULT_RIDER, calmTime, evaluateRoute } from "./physics";
 import { fetchElevations, fetchWindField } from "./wind";
 import {
   pLimit,
-  pickProvider,
   profileLabel,
+  providerChain,
   route,
   type Provider,
 } from "./routing";
@@ -91,14 +91,16 @@ export async function plan(
 ): Promise<PlanResponse> {
   const warnings: string[] = [];
   const rider: RiderProfile = { ...DEFAULT_RIDER, ...(req.rider ?? {}) };
-  const provider: Provider = pickProvider();
+  const chain: Provider[] = providerChain();
+  // Cual se ha usado de verdad: la cadena conmuta sola si el primero falla.
+  let usedProvider: Provider = chain[0];
   const targetM = Math.max(5, Math.min(400, req.distanceKm)) * 1000;
   const flex = Math.max(0, Math.min(12, req.flexHours ?? 3));
   const baseMs = nextHour(req.departureMs ?? Date.now());
 
-  if (provider === "osrm") {
+  if (!process.env.ORS_API_KEY) {
     warnings.push(
-      "Sin clave de OpenRouteService: se usa el OSRM público de FOSSGIS. Funciona, pero no distingue carretera de camino, no informa del firme y limita las peticiones."
+      "Sin clave de OpenRouteService: se enruta con servidores públicos gratuitos. Funciona bien, pero no informa del reparto de firme y puede saturarse en horas punta."
     );
   }
 
@@ -124,7 +126,7 @@ export async function plan(
   );
 
   // --- 2. Candidatos geometricos -----------------------------------------
-  const limit = pLimit(provider === "ors" ? 5 : 3);
+  const limit = pLimit(chain[0] === "ors" ? 5 : 3);
   let routingCalls = 0;
   const shapes: Shaped[] = [];
 
@@ -150,7 +152,8 @@ export async function plan(
   if (req.shape === "lineal") {
     if (!req.end) throw new Error("Una ruta lineal necesita punto de llegada");
     routingCalls++;
-    const geom = await limit(() => route([req.start, req.end!], req.surface, provider, signal));
+    const geom = await limit(() => route([req.start, req.end!], req.surface, chain, signal));
+    usedProvider = geom.provider;
     shapes.push(buildShape("directa", "Ruta directa", geom));
 
     // Variantes: forzamos un rodeo lateral para tener alternativas que el
@@ -169,7 +172,7 @@ export async function plan(
     const results = await Promise.allSettled(
       variants.map((v) => {
         routingCalls++;
-        return limit(() => route([req.start, v.via, req.end!], req.surface, provider, signal));
+        return limit(() => route([req.start, v.via, req.end!], req.surface, chain, signal));
       })
     );
     results.forEach((r, i) => {
@@ -203,12 +206,13 @@ export async function plan(
       headings.map((h) => {
         routingCalls++;
         const wps = polygonLoop(req.start, h, targetM / DETOUR_FACTOR, n, true);
-        return limit(() => route(wps, req.surface, provider, signal));
+        return limit(() => route(wps, req.surface, chain, signal));
       })
     );
 
     settled.forEach((r, i) => {
       if (r.status !== "fulfilled") return;
+      usedProvider = r.value.provider;
       const ratio = r.value.distanceM / targetM;
       if (ratio < 0.6 || ratio > 1.6) return; // el router se fue por los cerros
       shapes.push(
@@ -358,7 +362,7 @@ export async function plan(
             n,
             true
           );
-          return limit(() => route(wps, req.surface, provider, signal));
+          return limit(() => route(wps, req.surface, chain, signal));
         })
       );
       fixed.forEach((r, i) => {
@@ -377,8 +381,10 @@ export async function plan(
     }
   }
 
-  // --- 5. Altimetria para los finalistas (OSRM no la trae) -----------------
-  if (provider === "osrm") {
+  // --- 5. Altimetria para los finalistas ----------------------------------
+  // ORS y BRouter ya la traen en la propia geometria; OSRM no, y sin ella los
+  // tiempos ignorarian las cuestas. Se pide aparte solo en ese caso.
+  if (usedProvider === "osrm") {
     const finalists: Shaped[] = [];
     const seen = new Set<string>();
     for (const s of scored) {
@@ -551,8 +557,8 @@ export async function plan(
       series: wind.seriesAt(req.start[0], req.start[1]),
     },
     meta: {
-      provider,
-      profile: profileLabel(provider, req.surface),
+      provider: usedProvider,
+      profile: profileLabel(usedProvider, req.surface),
       requestedKm: req.distanceKm,
       routingCalls,
       warnings,

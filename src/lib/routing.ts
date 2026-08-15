@@ -1,9 +1,10 @@
 import type { LonLat, RouteGeometry, Surface } from "./types";
 import { polylineLength } from "./geo";
 
-export type Provider = "ors" | "osrm";
+export type Provider = "ors" | "brouter" | "osrm";
 
 const ORS_BASE = "https://api.openrouteservice.org";
+const BROUTER_BASE = "https://brouter.de/brouter";
 const OSRM_BASE = "https://routing.openstreetmap.de";
 const UA = "viento-de-los-cojones/0.1 (planificador de rutas ciclistas)";
 
@@ -31,10 +32,25 @@ const ORS_SURFACE_NAMES: Record<number, string> = {
   18: "hierba con losa",
 };
 
-export function pickProvider(): Provider {
+/**
+ * Orden de preferencia. Se prueban en cadena: si uno se cae o satura, se pasa
+ * al siguiente en vez de tumbar el plan entero. Los tres publicos aguantan uso
+ * moderado, pero ninguno garantiza nada, y de tanto en tanto uno de ellos deja
+ * de responder.
+ */
+export function providerChain(): Provider[] {
   const forced = process.env.ROUTING_PROVIDER?.toLowerCase();
-  if (forced === "ors" || forced === "osrm") return forced;
-  return process.env.ORS_API_KEY ? "ors" : "osrm";
+  const all: Provider[] = process.env.ORS_API_KEY
+    ? ["ors", "brouter", "osrm"]
+    : ["brouter", "osrm"];
+  if (forced === "ors" || forced === "brouter" || forced === "osrm") {
+    return [forced, ...all.filter((p) => p !== forced)];
+  }
+  return all;
+}
+
+export function pickProvider(): Provider {
+  return providerChain()[0];
 }
 
 export function orsProfile(surface: Surface): string {
@@ -48,8 +64,21 @@ export function orsProfile(surface: Surface): string {
   }
 }
 
+/** BRouter tiene perfiles que encajan casi uno a uno con lo que pedimos. */
+export function brouterProfile(surface: Surface): string {
+  switch (surface) {
+    case "carretera":
+      return "fastbike";
+    case "camino":
+      return "gravel";
+    default:
+      return "trekking";
+  }
+}
+
 export function profileLabel(provider: Provider, surface: Surface): string {
-  if (provider === "ors") return orsProfile(surface);
+  if (provider === "ors") return `openrouteservice/${orsProfile(surface)}`;
+  if (provider === "brouter") return `brouter/${brouterProfile(surface)}`;
   return "osrm/routed-bike";
 }
 
@@ -176,6 +205,52 @@ async function routeORS(
   };
 }
 
+/**
+ * BRouter, el enrutador que usa media Europa ciclista. No pide clave, entiende
+ * de firmes y devuelve la altimetria en la propia geometria, asi que con el no
+ * hace falta ir a buscarla aparte.
+ */
+async function routeBRouter(
+  waypoints: LonLat[],
+  surface: Surface,
+  signal?: AbortSignal
+): Promise<RouteGeometry> {
+  const url = new URL(BROUTER_BASE);
+  url.searchParams.set(
+    "lonlats",
+    waypoints.map((p) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`).join("|")
+  );
+  url.searchParams.set("profile", brouterProfile(surface));
+  url.searchParams.set("alternativeidx", "0");
+  url.searchParams.set("format", "geojson");
+
+  const res = await fetch(url.toString(), {
+    signal,
+    cache: "no-store",
+    headers: { "User-Agent": UA, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new RoutingError(
+      `BRouter ${res.status}: ${(await res.text()).slice(0, 300)}`,
+      res.status
+    );
+  }
+  const data = await res.json();
+  const feat = data?.features?.[0];
+  const coords: number[][] | undefined = feat?.geometry?.coordinates;
+  if (!coords?.length) throw new RoutingError("BRouter no devolvio geometria");
+
+  const props = feat.properties ?? {};
+  const distanceM = Number(props["track-length"]) || polylineLength(coords);
+  const ascentM = Number(props["filtered ascend"]);
+
+  return {
+    coords,
+    distanceM,
+    ascentM: Number.isFinite(ascentM) ? ascentM : undefined,
+  };
+}
+
 async function routeOSRM(
   waypoints: LonLat[],
   signal?: AbortSignal
@@ -203,19 +278,44 @@ async function routeOSRM(
   };
 }
 
-/** Enruta una lista de waypoints con el proveedor activo. */
+function routeWith(
+  provider: Provider,
+  waypoints: LonLat[],
+  surface: Surface,
+  signal?: AbortSignal
+): Promise<RouteGeometry> {
+  if (provider === "ors") return routeORS(waypoints, surface, signal);
+  if (provider === "brouter") return routeBRouter(waypoints, surface, signal);
+  return routeOSRM(waypoints, signal);
+}
+
+export interface RouteResult extends RouteGeometry {
+  provider: Provider;
+}
+
+/**
+ * Enruta probando los proveedores en cadena. Todos son servicios publicos y
+ * gratuitos, y cualquiera puede estar saturado en un momento dado; encadenarlos
+ * es la diferencia entre "no se pudo trazar la ruta" y que salga igualmente.
+ */
 export async function route(
   waypoints: LonLat[],
   surface: Surface,
-  provider: Provider,
+  chain: Provider[],
   signal?: AbortSignal
-): Promise<RouteGeometry> {
+): Promise<RouteResult> {
   if (waypoints.length < 2) throw new RoutingError("Hacen falta al menos 2 puntos");
-  return withRetry(() =>
-    provider === "ors"
-      ? routeORS(waypoints, surface, signal)
-      : routeOSRM(waypoints, signal)
-  );
+  let last: unknown;
+  for (const provider of chain) {
+    try {
+      const geom = await withRetry(() => routeWith(provider, waypoints, surface, signal));
+      return { ...geom, provider };
+    } catch (err) {
+      last = err;
+      if (signal?.aborted) break;
+    }
+  }
+  throw last instanceof Error ? last : new RoutingError(String(last));
 }
 
 export interface GeocodeHit {
