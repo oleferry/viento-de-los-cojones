@@ -153,7 +153,10 @@ export async function plan(
   const MIN_PAVED = 0.95;
 
   // --- 2. Candidatos geometricos -----------------------------------------
-  const limit = pLimit(chain[0] === "ors" ? 5 : 3);
+  // ORS gratuito limita por minuto ademas de por dia. Con 3 en vuelo las
+  // peticiones se reparten en el tiempo y un par de planes seguidos no
+  // disparan el limite.
+  const limit = pLimit(3);
   let routingCalls = 0;
   const shapes: Shaped[] = [];
 
@@ -252,7 +255,7 @@ export async function plan(
       wind,
       baseMs,
       rider,
-      usaRoundTrip ? 5 : 7
+      usaRoundTrip ? 4 : 7
     );
 
     type Job = { id: string; heading?: number; run: () => Promise<Awaited<ReturnType<typeof route>>> };
@@ -271,7 +274,7 @@ export async function plan(
     // carreteras, asi que sale mucho mas limpio. Se usan los dos y que decida
     // la puntuacion.
     if (usaRoundTrip) {
-      for (let s = 0; s < 5; s++) {
+      for (let s = 0; s < 4; s++) {
         jobs.push({
           id: `rt${s}`,
           run: () =>
