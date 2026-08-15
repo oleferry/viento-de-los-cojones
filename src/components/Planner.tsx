@@ -101,6 +101,13 @@ export default function Planner() {
   const [showAlts, setShowAlts] = useState(true);
   const [mapTheme, setMapTheme] = useState<MapTheme>("dark");
   const [sheetOpen, setSheetOpen] = useState(false);
+  /**
+   * En movil el panel no cabe entero. Con resultado, se ensena el resultado y
+   * los ajustes pasan a una pestana: despues de pulsar "Trazar ruta" nadie
+   * quiere hacer scroll por el formulario entero para ver cuanto va a tardar.
+   * En escritorio esto no aplica y se ve todo seguido.
+   */
+  const [movilPestana, setMovilPestana] = useState<"ajustes" | "resultado">("ajustes");
   const inflight = useRef<AbortController | null>(null);
   const { cuenta, recargar } = useCuenta();
   const conSesion = !!cuenta?.user;
@@ -260,6 +267,13 @@ export default function Planner() {
       ? !!track
       : !!start && (shape === "circular" || !!end);
 
+  /**
+   * Clase para lo que solo se ve en la pestana de ajustes. En escritorio no
+   * hay pestanas, asi que `md:block` lo devuelve siempre a la vista.
+   */
+  const ocultaEnMovil =
+    result && movilPestana === "resultado" ? "hidden md:block" : "";
+
   const run = useCallback(
     async (overrideDepartureMs?: number) => {
       if (shape === "importada" ? !track : !start) return;
@@ -324,6 +338,7 @@ export default function Planner() {
         );
         setChosenId(null);
         setSheetOpen(true);
+        setMovilPestana("resultado");
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         setError(err instanceof Error ? err.message : String(err));
@@ -378,21 +393,53 @@ export default function Planner() {
         windGrid={result?.wind.grid}
       />
 
-      {/* leyenda flotante — en movil arriba, que abajo esta el panel */}
-      <div className="glass pointer-events-auto absolute right-2 top-2 z-20 rounded-xl px-2.5 py-2 md:bottom-6 md:right-3 md:top-auto md:px-3">
-        <div className="label mb-1.5">Viento en ruta</div>
-        <div className="flex items-center gap-2">
-          <span className="h-1.5 w-20 rounded-full bg-gradient-to-r from-[#34d399] via-[#facc15] to-[#ef4444] md:w-24" />
+      {/*
+        Controles del mapa. En movil es una barra estrecha arriba a la izquierda
+        (la derecha la ocupan el zoom y la ubicacion) y va por DEBAJO del panel
+        en z-index: antes se solapaban y no se podia tocar ninguno de los dos.
+        En escritorio se despliega la leyenda completa abajo a la derecha.
+      */}
+      <div className="glass absolute left-2 top-2 z-10 rounded-xl p-1.5 md:bottom-6 md:left-auto md:right-3 md:top-auto md:px-3 md:py-2">
+        <div className="label mb-1.5 hidden md:block">Viento en ruta</div>
+        <div className="hidden md:block">
+          <span className="block h-1.5 w-24 rounded-full bg-gradient-to-r from-[#34d399] via-[#facc15] to-[#ef4444]" />
+          <div className="mt-1 flex justify-between text-[0.62rem] text-[var(--color-faint)]">
+            <span>a favor</span>
+            <span>de cara</span>
+          </div>
         </div>
-        <div className="mt-1 flex justify-between text-[0.62rem] text-[var(--color-faint)]">
-          <span>a favor</span>
-          <span>de cara</span>
+
+        {/* Movil: iconos cuadrados de 40 px, que es lo minimo tocable. */}
+        <div className="flex gap-1 md:hidden">
+          <IconToggle
+            on={showArrows}
+            onClick={() => setShowArrows((v) => !v)}
+            label="Flechas de viento"
+          >
+            <path d="M12 3 7 21l5-4 5 4-5-18Z" />
+          </IconToggle>
+          <IconToggle
+            on={showAlts}
+            onClick={() => setShowAlts((v) => !v)}
+            label="Rutas alternativas"
+          >
+            <path d="M4 20 20 4M4 12h6M14 20h6" strokeDasharray="3 3" />
+          </IconToggle>
+          <IconToggle
+            on={mapTheme === "light"}
+            onClick={() => setMapTheme(mapTheme === "light" ? "dark" : "light")}
+            label="Cambiar entre mapa claro y oscuro"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
+          </IconToggle>
         </div>
-        <div className="mt-2 flex flex-col gap-1 text-[0.68rem]">
+
+        <div className="mt-2 hidden flex-col gap-1 text-[0.68rem] md:flex">
           <Toggle on={showArrows} onChange={setShowArrows} label="Viento" />
           <Toggle on={showAlts} onChange={setShowAlts} label="Alternativas" />
         </div>
-        <div className="seg mt-2 grid-cols-2">
+        <div className="seg mt-2 hidden grid-cols-2 md:grid">
           <button data-on={mapTheme === "dark"} onClick={() => setMapTheme("dark")}>
             Oscuro
           </button>
@@ -405,20 +452,27 @@ export default function Planner() {
       {/* panel */}
       <div
         className={[
-          "glass scroll-thin absolute z-30 overflow-y-auto",
-          "inset-x-0 bottom-0 max-h-[86dvh] rounded-t-3xl",
-          sheetOpen ? "" : "translate-y-[calc(100%-8.5rem)]",
+          "glass scroll-thin absolute z-30 overflow-y-auto overscroll-contain",
+          // Asomado deja ver algo mas de la mitad del mapa; abierto ocupa el
+          // 80%, nunca todo: perder el mapa de vista desorienta.
+          "inset-x-0 bottom-0 max-h-[80dvh] rounded-t-2xl",
+          sheetOpen ? "" : "translate-y-[calc(100%-7rem)]",
           "transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)]",
           "md:inset-y-3 md:left-3 md:right-auto md:w-[26rem] md:max-h-none md:translate-y-0 md:rounded-2xl",
         ].join(" ")}
+        style={{
+          // Barra de gestos del iPhone y equivalentes en Android.
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
       >
         {/* asa del bottom sheet */}
         <button
           type="button"
           onClick={() => setSheetOpen((v) => !v)}
-          className="sticky top-0 z-10 flex w-full justify-center py-2.5 md:hidden"
-          style={{ background: "linear-gradient(180deg,rgba(20,26,38,.96),rgba(20,26,38,0))" }}
+          className="sticky top-0 z-10 flex w-full justify-center py-3 md:hidden"
+          style={{ background: "linear-gradient(180deg,rgba(20,26,38,.97),rgba(20,26,38,0))" }}
           aria-label={sheetOpen ? "Contraer panel" : "Expandir panel"}
+          aria-expanded={sheetOpen}
         >
           <span className="h-1 w-10 rounded-full bg-white/25" />
         </button>
@@ -443,7 +497,27 @@ export default function Planner() {
             </a>
           </header>
 
+          {/* Pestanas: solo en movil y solo cuando hay algo que ensenar. */}
+          {result && (
+            <div className="seg grid-cols-2 md:hidden">
+              <button
+                data-on={movilPestana === "ajustes"}
+                onClick={() => setMovilPestana("ajustes")}
+              >
+                Ajustes
+              </button>
+              <button
+                data-on={movilPestana === "resultado"}
+                onClick={() => setMovilPestana("resultado")}
+              >
+                Resultado
+              </button>
+            </div>
+          )}
+
+          <div className={ocultaEnMovil}>
           <AccountBar cuenta={cuenta} onRecargar={recargar} />
+          </div>
 
           <SavedRoutes
             activo={conSesion}
@@ -455,7 +529,7 @@ export default function Planner() {
           />
 
           {/* --- salida / llegada --- */}
-          <div className="space-y-3">
+          <div className={`space-y-3 ${ocultaEnMovil}`}>
             <div className="seg grid-cols-3">
               {(["circular", "lineal", "importada"] as Shape[]).map((s) => (
                 <button key={s} data-on={shape === s} onClick={() => setShape(s)}>
@@ -517,7 +591,7 @@ export default function Planner() {
 
           {/* --- distancia --- */}
           {shape === "circular" && (
-            <div>
+            <div className={ocultaEnMovil}>
               <div className="mb-1.5 flex items-baseline justify-between">
                 <span className="label">Distancia</span>
                 <span className="num text-sm font-bold text-[var(--color-accent)]">
@@ -547,7 +621,7 @@ export default function Planner() {
           )}
 
           {/* --- firme --- */}
-          <div className={shape === "importada" ? "hidden" : undefined}>
+          <div className={shape === "importada" ? "hidden" : ocultaEnMovil}>
             <div className="label mb-1.5">Por dónde</div>
             <div className="seg grid-cols-3">
               {SURFACES.map((s) => (
@@ -564,7 +638,7 @@ export default function Planner() {
           </div>
 
           {/* --- estrategia de viento --- */}
-          <div className={shape === "importada" ? "hidden" : undefined}>
+          <div className={shape === "importada" ? "hidden" : ocultaEnMovil}>
             <div className="label mb-1.5">Qué prefieres</div>
             <div className="seg">
               {MODES.map((m) => (
@@ -582,7 +656,7 @@ export default function Planner() {
           </div>
 
           {/* --- cuándo --- */}
-          <div className="grid grid-cols-[1fr_auto] gap-2">
+          <div className={`grid grid-cols-[1fr_auto] gap-2 ${ocultaEnMovil}`}>
             <div>
               <div className="label mb-1.5">Salida</div>
               <input
@@ -608,7 +682,9 @@ export default function Planner() {
             </div>
           </div>
 
-          <GroupPicker group={group} onChange={setGroup} />
+          <div className={ocultaEnMovil}>
+            <GroupPicker group={group} onChange={setGroup} />
+          </div>
 
           {/* --- perfil de ciclista --- */}
           <button
@@ -738,6 +814,49 @@ export default function Planner() {
 }
 
 /* ------------------------------------------------------------------ */
+
+/** Boton cuadrado de 40 px: el minimo que se toca bien con el dedo. */
+function IconToggle({
+  on,
+  onClick,
+  label,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={on}
+      className="grid h-10 w-10 place-items-center rounded-lg border transition-colors"
+      style={{
+        borderColor: on ? "rgba(255,138,61,.5)" : "var(--color-line)",
+        background: on ? "rgba(255,138,61,.16)" : "rgba(255,255,255,.03)",
+        color: on ? "var(--color-accent)" : "var(--color-faint)",
+      }}
+    >
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        {children}
+      </svg>
+    </button>
+  );
+}
 
 function Toggle({
   on,
