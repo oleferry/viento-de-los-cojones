@@ -585,7 +585,7 @@ export default function Planner() {
             <button
               type="button"
               onClick={useMyLocation}
-              className="-mt-1 text-[0.68rem] font-semibold text-[var(--color-faint)] transition-colors hover:text-[var(--color-accent)]"
+              className="-mt-1 inline-flex min-h-11 items-center text-[0.72rem] font-semibold text-[var(--color-faint)] transition-colors hover:text-[var(--color-accent)] md:min-h-0"
             >
               usar mi ubicación
             </button>
@@ -633,7 +633,7 @@ export default function Planner() {
                   <button
                     key={d}
                     onClick={() => setDistanceKm(d)}
-                    className="num flex-1 rounded-lg border border-white/8 py-1 text-[0.7rem] text-[var(--color-muted)] transition-colors hover:border-white/20 hover:text-[var(--color-ink)]"
+                    className="num min-h-11 flex-1 rounded-lg border border-white/8 text-[0.75rem] text-[var(--color-muted)] transition-colors hover:border-white/20 hover:text-[var(--color-ink)] md:min-h-0 md:py-1"
                   >
                     {d}
                   </button>

@@ -56,7 +56,7 @@ export default function Outlook({ outlook, selected, onSelect, busy }: Props) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="label flex w-full items-center justify-between hover:text-[var(--color-muted)]"
+        className="label flex min-h-11 w-full items-center justify-between hover:text-[var(--color-muted)] md:min-h-0"
       >
         <span>Otros días</span>
         <span className="text-[var(--color-faint)]">{open ? "−" : "+"}</span>

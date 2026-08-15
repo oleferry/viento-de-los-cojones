@@ -103,7 +103,7 @@ export default function PlaceInput({
         <button
           type="button"
           onClick={onPickOnMap}
-          className="text-[0.68rem] font-semibold tracking-wide transition-colors"
+          className="-my-2 inline-flex min-h-11 items-center py-2 text-[0.72rem] font-semibold tracking-wide transition-colors md:min-h-0"
           style={{ color: picking ? accent : "var(--color-faint)" }}
         >
           {picking ? "toca el mapa…" : "marcar en el mapa"}

@@ -36,7 +36,7 @@ export default function SavedRoutes({ activo, onCargar }: Props) {
       <button
         type="button"
         onClick={() => setAbierto((v) => !v)}
-        className="label flex w-full items-center justify-between hover:text-[var(--color-muted)]"
+        className="label flex min-h-11 w-full items-center justify-between hover:text-[var(--color-muted)] md:min-h-0"
       >
         <span>Mis rutas ({rutas.length})</span>
         <span className="text-[var(--color-faint)]">{abierto ? "−" : "+"}</span>
