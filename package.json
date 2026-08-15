@@ -4,7 +4,10 @@
   "private": true,
   "description": "Planificador de rutas en bici optimizadas segun el viento",
   "scripts": {
+    "maplibre:worker": "node scripts/copy-maplibre-worker.mjs",
+    "predev": "npm run maplibre:worker",
     "dev": "next dev",
+    "prebuild": "npm run maplibre:worker",
     "build": "next build",
     "build:check": "node -e \"process.env.NEXT_DIST_DIR='.next-check';require('child_process').execSync('next build',{stdio:'inherit',env:process.env})\"",
     "start": "next start",
@@ -23,6 +26,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "postcss": "^8.5.26",
+    "puppeteer": "^25.7.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2"
   }

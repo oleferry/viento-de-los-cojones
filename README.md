@@ -130,6 +130,36 @@ Clave gratuita de OpenRouteService en <https://openrouteservice.org/dev/#/signup
 El endpoint `/api/plan` está declarado con `maxDuration = 60`, suficiente para
 las ~15 peticiones de enrutado que hace una circular.
 
+## El worker de MapLibre
+
+MapLibre 6 deduce la URL de su worker de `import.meta.url` y se rinde si no
+empieza por `http`:
+
+```js
+if (!/^https?:/.test(import.meta.url)) return "";
+```
+
+Bajo cualquier bundler moderno (Turbopack incluido) eso devuelve cadena vacía,
+MapLibre hace `new Worker("")` y el worker nace muerto **sin lanzar nada**. El
+basemap se sigue viendo porque las teselas ráster van por el hilo principal,
+pero toda fuente GeoJSON se tesela en el worker: la ruta, las flechas y las
+alternativas desaparecen con la consola limpia.
+
+Por eso `scripts/copy-maplibre-worker.mjs` copia el worker a `public/maplibre/`
+en cada build (`prebuild` y `predev`) y `MapView` lo apunta con `setWorkerUrl()`.
+
+Para comprobarlo en un navegador de verdad, que es la única forma de verificar
+WebGL:
+
+```bash
+node scripts/visual-check.mjs http://localhost:3000 salida.png
+```
+
+Traza una ruta, pregunta a MapLibre qué está renderizando de verdad
+(`queryRenderedFeatures`), cuenta los píxeles de color de la captura y guarda
+un recorte del mapa en claro y en oscuro. `scripts/probe.mjs` va más abajo aún:
+intercepta `Worker` y vuelca el estado interno del estilo.
+
 ## Estructura
 
 ```

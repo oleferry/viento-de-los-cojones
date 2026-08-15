@@ -8,5 +8,9 @@ out
 *.tsbuildinfo
 next-env.d.ts
 
+# Worker de MapLibre copiado en cada build por scripts/copy-maplibre-worker.mjs
+public/maplibre/
+map-check.png
+
 .vercel
 .env*

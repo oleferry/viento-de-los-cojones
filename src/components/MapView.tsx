@@ -9,6 +9,8 @@ import {
   NavigationControl,
   Popup,
   ScaleControl,
+  getWorkerUrl,
+  setWorkerUrl,
   type GeoJSONSource,
   type MapLayerMouseEvent,
   type MapMouseEvent,
@@ -25,9 +27,13 @@ const ATTRIB =
   'viento <a href="https://open-meteo.com/">Open-Meteo</a>';
 
 function styleFor(theme: MapTheme): StyleSpecification {
-  // "voyager" en claro porque dibuja las carreteras secundarias y los caminos
+  // Voyager en claro porque dibuja las carreteras secundarias y los caminos
   // mucho mejor que positron, y aqui eso es justo lo que se quiere ver.
-  const slug = theme === "light" ? "voyager" : "dark_all";
+  // OJO con la ruta: voyager cuelga de `rastertiles/`, mientras que dark_all y
+  // light_all estan en la raiz. Con la ruta equivocada CARTO devuelve un 404
+  // en HTML, y como un 404 no lleva cabeceras CORS el navegador lo denuncia
+  // como error de CORS, que despista muchisimo.
+  const slug = theme === "light" ? "rastertiles/voyager" : "dark_all";
   const bg = theme === "light" ? "#eef1f5" : "#080b11";
   return {
     version: 8,
@@ -50,6 +56,27 @@ function styleFor(theme: MapTheme): StyleSpecification {
 }
 
 const EMPTY = { type: "FeatureCollection" as const, features: [] };
+
+/**
+ * MapLibre 6 saca la URL de su worker de `import.meta.url` y se rinde si no
+ * empieza por http, cosa que pasa siempre bajo un bundler: se queda en cadena
+ * vacia, hace `new Worker("")` y el worker muere en silencio. Como TODA fuente
+ * GeoJSON se tesela alli, la ruta y las flechas no aparecen nunca, y no se ve
+ * un solo error en consola porque el basemap raster va por el hilo principal.
+ *
+ * `scripts/copy-maplibre-worker.mjs` deja el worker en public/ en cada build.
+ */
+function ensureWorker() {
+  try {
+    if (!/^https?:/i.test(getWorkerUrl() || "")) {
+      setWorkerUrl(
+        new URL("/maplibre/maplibre-gl-worker.mjs", window.location.origin).href
+      );
+    }
+  } catch (err) {
+    console.error("[mapa] no se pudo configurar el worker de MapLibre", err);
+  }
+}
 
 function trackToSegments(track: TrackPoint[]) {
   const features = [];
@@ -97,7 +124,11 @@ function lineOf(coords: number[][]) {
   };
 }
 
-/** Icono de flecha generado en canvas: evita depender de glifos externos. */
+/**
+ * Icono de flecha generado en canvas: evita depender de glifos externos.
+ * Lleva un disco oscuro detras porque las flechas van encima de la propia
+ * linea de la ruta, que es de colores vivos, y sin fondo se pierden.
+ */
 function arrowImage(size = 64): ImageData | null {
   try {
     const cv = document.createElement("canvas");
@@ -106,18 +137,24 @@ function arrowImage(size = 64): ImageData | null {
     const ctx = cv.getContext("2d");
     if (!ctx) return null;
     const c = size / 2;
+
+    ctx.beginPath();
+    ctx.arc(c, c, c * 0.94, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(6, 10, 18, 0.82)";
+    ctx.fill();
+    ctx.lineWidth = size * 0.04;
+    ctx.strokeStyle = "rgba(224, 242, 254, 0.55)";
+    ctx.stroke();
+
     ctx.translate(c, c);
     ctx.beginPath();
-    ctx.moveTo(0, -c * 0.78);
-    ctx.lineTo(c * 0.42, c * 0.32);
-    ctx.lineTo(0, c * 0.08);
-    ctx.lineTo(-c * 0.42, c * 0.32);
+    ctx.moveTo(0, -c * 0.66);
+    ctx.lineTo(c * 0.4, c * 0.42);
+    ctx.lineTo(0, c * 0.16);
+    ctx.lineTo(-c * 0.4, c * 0.42);
     ctx.closePath();
     ctx.fillStyle = "#e0f2fe";
-    ctx.strokeStyle = "rgba(5, 7, 11, 0.9)";
-    ctx.lineWidth = size * 0.055;
     ctx.fill();
-    ctx.stroke();
     return ctx.getImageData(0, 0, size, size);
   } catch {
     return null;
@@ -154,6 +191,12 @@ export default function MapView({
   const holder = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
   const markers = useRef<Marker[]>([]);
+  /**
+   * Llevamos nosotros la cuenta de si las capas estan puestas. No se puede
+   * preguntar `m.getLayer(...)`: mientras el estilo no este "cargado" devuelve
+   * undefined aunque la capa exista, y entonces se reintenta anadirla y salta.
+   */
+  const installed = useRef(false);
 
   // Los handlers de MapLibre viven fuera del ciclo de React, asi que leen el
   // estado por referencia para no quedarse con una version vieja.
@@ -166,41 +209,60 @@ export default function MapView({
    * que nunca dependemos de que un unico evento `load` llegue bien.
    */
   const install = (m: MLMap) => {
-    if (m.getLayer("route-line")) return;
+    if (installed.current) return;
+
+    // Cada pieza va aislada: que falle una no puede dejar el mapa sin las
+    // demas, que es justo lo que pasaba (un fallo al crear el icono, o un
+    // "already exists", abortaba la instalacion entera y la ruta no llegaba
+    // nunca a pintarse). Y si algo falla de verdad NO damos la instalacion por
+    // buena, para que el reintento vuelva a intentarlo.
+    let failed = false;
+    const attempt = (what: string, fn: () => void) => {
+      try {
+        fn();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // "already exists" no es un fallo: la capa esta, que es lo que queriamos.
+        if (/already exists/i.test(msg)) return;
+        failed = true;
+        if (!/not done loading/i.test(msg)) console.warn(`[mapa] ${what}:`, msg);
+      }
+    };
 
     let hasArrow = m.hasImage("wind-arrow");
     if (!hasArrow) {
-      // Si el icono falla no puede llevarse por delante el resto de capas: sin
-      // este try la ruta entera desaparecia del mapa por una flecha.
-      try {
+      attempt("icono de viento", () => {
         const img = arrowImage();
         if (img) {
-          m.addImage("wind-arrow", img, { pixelRatio: 3 });
+          m.addImage("wind-arrow", img, { pixelRatio: 2 });
           hasArrow = true;
         }
-      } catch (err) {
-        console.warn("[mapa] no se pudo crear el icono de viento", err);
-      }
+      });
     }
 
     for (const id of ["alts", "route", "arrows", "cursor"]) {
-      if (!m.getSource(id)) m.addSource(id, { type: "geojson", data: EMPTY });
+      attempt(`fuente ${id}`, () => {
+        if (!m.getSource(id)) m.addSource(id, { type: "geojson", data: EMPTY });
+      });
     }
 
-    m.addLayer({
+    const layer = (spec: Parameters<MLMap["addLayer"]>[0]) =>
+      attempt(`capa ${spec.id}`, () => m.addLayer(spec));
+
+    layer({
       id: "alts-line",
       type: "line",
       source: "alts",
       layout: { "line-cap": "round", "line-join": "round" },
       paint: {
-        "line-color": theme === "light" ? "#475569" : "#94a3b8",
-        "line-width": 3,
-        "line-opacity": 0.45,
-        "line-dasharray": [2, 2],
+        "line-color": theme === "light" ? "#334155" : "#a5b4c8",
+        "line-width": 3.5,
+        "line-opacity": 0.6,
+        "line-dasharray": [1.6, 1.6],
       },
     });
 
-    m.addLayer({
+    layer({
       id: "route-casing",
       type: "line",
       source: "route",
@@ -212,7 +274,7 @@ export default function MapView({
       },
     });
 
-    m.addLayer({
+    layer({
       id: "route-line",
       type: "line",
       source: "route",
@@ -233,7 +295,7 @@ export default function MapView({
     });
 
     if (hasArrow) {
-      m.addLayer({
+      layer({
         id: "wind-arrows",
         type: "symbol",
         source: "arrows",
@@ -243,13 +305,22 @@ export default function MapView({
           "icon-rotation-alignment": "map",
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
-          "icon-size": ["interpolate", ["linear"], ["get", "ws"], 0, 0.3, 10, 0.62],
+          // El tamano crece con la fuerza del viento: se lee de un vistazo
+          // donde aprieta sin tener que mirar numeros.
+          "icon-size": [
+            "interpolate",
+            ["linear"],
+            ["get", "ws"],
+            0, 0.55,
+            4, 0.8,
+            10, 1.15,
+          ],
         },
-        paint: { "icon-opacity": 0.85 },
+        paint: { "icon-opacity": 0.95 },
       });
     }
 
-    m.addLayer({
+    layer({
       id: "cursor-dot",
       type: "circle",
       source: "cursor",
@@ -260,30 +331,83 @@ export default function MapView({
         "circle-stroke-width": 2.5,
       },
     });
+
+    // Doble comprobacion: ni un solo fallo, y las cuatro fuentes existiendo de
+    // verdad. `getSource` si se puede consultar antes de que el estilo termine.
+    installed.current =
+      !failed &&
+      ["alts", "route", "arrows", "cursor"].every((id) => {
+        try {
+          return !!m.getSource(id);
+        } catch {
+          return false;
+        }
+      });
   };
 
-  /** Vuelca el estado actual en las fuentes. Seguro de llamar en cualquier momento. */
-  const pushData = (m: MLMap) => {
+  /**
+   * Vuelca el estado actual en las fuentes. Se puede llamar en cualquier
+   * momento y nunca lanza: si las fuentes aun no estan, devuelve false y quien
+   * llama lo reintenta. Lo importante es que NO depende de que el estilo este
+   * "cargado", porque en MapLibre eso incluye las teselas del basemap y basta
+   * con que una falle para que no lo este nunca.
+   */
+  const pushData = (m: MLMap): boolean => {
     const { best: b, alternatives: alts, showArrows: arrows, showAlternatives: showAlts } =
       props.current;
-    const route = m.getSource("route") as GeoJSONSource | undefined;
-    const arrowSrc = m.getSource("arrows") as GeoJSONSource | undefined;
-    const altSrc = m.getSource("alts") as GeoJSONSource | undefined;
-    if (!route) return;
+    try {
+      const route = m.getSource("route") as GeoJSONSource | undefined;
+      if (!route) return false;
+      const arrowSrc = m.getSource("arrows") as GeoJSONSource | undefined;
+      const altSrc = m.getSource("alts") as GeoJSONSource | undefined;
 
-    route.setData(b ? trackToSegments(b.track) : EMPTY);
-    arrowSrc?.setData(b && arrows ? windArrows(b.track) : EMPTY);
-    altSrc?.setData(
-      showAlts && alts?.length
-        ? { type: "FeatureCollection", features: alts.map((a) => lineOf(a.geometry.coords)) }
-        : EMPTY
-    );
+      const data = b ? trackToSegments(b.track) : EMPTY;
+      route.setData(data);
+      (window as unknown as { __vdcPush?: unknown }).__vdcPush = {
+        features: data.features.length,
+        best: b?.id ?? null,
+        at: new Date().toISOString().slice(11, 19),
+      };
+      arrowSrc?.setData(b && arrows ? windArrows(b.track) : EMPTY);
+      altSrc?.setData(
+        showAlts && alts?.length
+          ? { type: "FeatureCollection", features: alts.map((a) => lineOf(a.geometry.coords)) }
+          : EMPTY
+      );
+      m.triggerRepaint();
+      return true;
+    } catch (err) {
+      console.warn("[mapa] volcando datos:", err);
+      return false;
+    }
+  };
+
+  /**
+   * Instala si hace falta y vuelca los datos. Reintenta hasta que el estilo
+   * acepte las capas: MapLibre rechaza `addSource` con "Style is not done
+   * loading" hasta que ha terminado de parsear, y no hay forma publica y fiable
+   * de preguntar por ese momento exacto (`isStyleLoaded()` mide otra cosa).
+   */
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sync = (m: MLMap, tries = 0) => {
+    if (syncTimer.current) {
+      clearTimeout(syncTimer.current);
+      syncTimer.current = null;
+    }
+    install(m);
+    if (installed.current && pushData(m)) return;
+    if (tries < 100) {
+      syncTimer.current = setTimeout(() => sync(m, tries + 1), 100);
+    } else {
+      console.error("[mapa] no se pudieron instalar las capas de la ruta");
+    }
   };
 
   // --- init -------------------------------------------------------------
   useEffect(() => {
     const node = holder.current;
     if (map.current || !node) return;
+    ensureWorker(); // antes de crear el mapa: si no, no hay teselado de GeoJSON
     const m = new MLMap({
       container: node,
       style: styleFor(theme),
@@ -294,6 +418,8 @@ export default function MapView({
       pitchWithRotate: false,
     });
     map.current = m;
+    installed.current = false;
+    appliedTheme.current = theme;
     m.addControl(new NavigationControl({ showCompass: false }), "top-right");
     m.addControl(new GeolocateControl({ trackUserLocation: false }), "top-right");
     m.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
@@ -304,20 +430,15 @@ export default function MapView({
       console.error("[mapa]", e.error ?? e);
     });
 
-    // Se vuelca SIEMPRE, tanto al cargar como al cambiar de basemap: asi la
-    // ruta reaparece sola pase lo que pase con el estilo.
-    const onStyle = () => {
-      if (!m.isStyleLoaded()) return;
-      try {
-        install(m);
-        pushData(m);
-      } catch (err) {
-        console.error("[mapa] instalando capas", err);
-      }
-    };
+    // OJO: aqui NO se puede preguntar `isStyleLoaded()`. En MapLibre eso
+    // significa "estilo Y todas las teselas cargadas", asi que basta con que
+    // una tesela del basemap falle o tarde para que sea false indefinidamente.
+    // Usarlo como puerta dejaba el mapa con las capas puestas pero vacias.
+    const onStyle = () => sync(m);
     m.on("load", onStyle);
     // Cambiar de basemap destruye las capas: `styledata` las reinstala.
     m.on("styledata", onStyle);
+    sync(m);
 
     const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 12 });
 
@@ -361,22 +482,31 @@ export default function MapView({
 
     return () => {
       ro.disconnect();
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      syncTimer.current = null;
       m.remove();
       map.current = null;
+      installed.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- cambio de basemap -------------------------------------------------
-  const firstTheme = useRef(true);
+  /**
+   * El tema con el que se creo el mapa actual. Se reinicia al crear el mapa,
+   * no al montar el componente: en desarrollo React monta, desmonta y vuelve a
+   * montar, y un flag "primera vez" a nivel de componente hacia que el segundo
+   * mapa recibiera un setStyle nada mas nacer, con el estilo a medio parsear.
+   */
+  const appliedTheme = useRef<MapTheme>(theme);
   useEffect(() => {
     const m = map.current;
-    if (!m) return;
-    if (firstTheme.current) {
-      firstTheme.current = false;
-      return;
-    }
-    m.setStyle(styleFor(theme)); // `styledata` reinstalara las capas
+    if (!m || appliedTheme.current === theme) return;
+    appliedTheme.current = theme;
+    installed.current = false; // el cambio de estilo se lleva las capas por delante
+    m.setStyle(styleFor(theme)); // `styledata` disparara sync()
+    sync(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme]);
 
   // --- cursor de picado --------------------------------------------------
@@ -389,16 +519,7 @@ export default function MapView({
   // --- datos -------------------------------------------------------------
   useEffect(() => {
     const m = map.current;
-    if (!m) return;
-    if (m.isStyleLoaded()) {
-      install(m);
-      pushData(m);
-    } else {
-      m.once("idle", () => {
-        install(m);
-        pushData(m);
-      });
-    }
+    if (m) sync(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [best, alternatives, showArrows, showAlternatives]);
 
