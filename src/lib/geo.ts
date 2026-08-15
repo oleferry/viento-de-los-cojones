@@ -229,6 +229,76 @@ export function uTurns(coords: number[][]): number {
   return cuenta;
 }
 
+/**
+ * Recorta los desvios de ida y vuelta de una ruta.
+ *
+ * Detectarlos y descartar la ruta entera es tirar el trabajo: un bucle de 80 km
+ * puede ser estupendo salvo por un pico de 300 m donde el router fue a tocar un
+ * punto y se volvio. Y como ese pico va y viene por LA MISMA carretera,
+ * eliminarlo deja una ruta perfectamente valida y continua — simplemente no
+ * coges el desvio.
+ *
+ * Se busca, para cada punto, si la ruta ya paso a menos de `toleranciaM` hace
+ * poco; si es asi, todo lo que hay entre medias es una excursion y se quita.
+ * El tope de `maxDesvioM` evita cargarse el propio bucle, que por definicion
+ * vuelve al punto de partida.
+ */
+export function trimSpurs(
+  coords: number[][],
+  toleranciaM = 35,
+  maxDesvioM = 4000
+): number[][] {
+  if (coords.length < 6) return coords;
+
+  const salida: number[][] = [coords[0]];
+  // Distancia acumulada de lo que llevamos aceptado, para medir hacia atras.
+  const acum: number[] = [0];
+
+  for (let i = 1; i < coords.length; i++) {
+    const p = coords[i];
+    let corte = -1;
+
+    // Hacia atras mientras la excursion siga siendo corta. El -3 evita
+    // detectar como desvio el propio zigzag de dos puntos consecutivos.
+    for (let k = salida.length - 3; k >= 0; k--) {
+      if (acum[salida.length - 1] - acum[k] > maxDesvioM) break;
+      if (
+        haversine([p[0], p[1]], [salida[k][0], salida[k][1]]) <= toleranciaM
+      ) {
+        corte = k;
+        break;
+      }
+    }
+
+    if (corte >= 0) {
+      // Nos quedamos con lo anterior al desvio y seguimos desde aqui.
+      salida.length = corte + 1;
+      acum.length = corte + 1;
+    }
+
+    const anterior = salida[salida.length - 1];
+    salida.push(p);
+    acum.push(
+      acum[acum.length - 1] +
+        haversine([anterior[0], anterior[1]], [p[0], p[1]])
+    );
+  }
+
+  // Un bucle acaba donde empieza: si el recorte se ha comido el cierre, se
+  // devuelve al punto de partida.
+  const primero = coords[0];
+  const ultimo = salida[salida.length - 1];
+  const finOriginal = coords[coords.length - 1];
+  if (
+    haversine([primero[0], primero[1]], [finOriginal[0], finOriginal[1]]) < toleranciaM &&
+    haversine([primero[0], primero[1]], [ultimo[0], ultimo[1]]) > toleranciaM
+  ) {
+    salida.push(primero.slice());
+  }
+
+  return salida.length >= 2 ? salida : coords;
+}
+
 /** Caja envolvente [minLon, minLat, maxLon, maxLat]. */
 export function bbox(coords: number[][]): [number, number, number, number] {
   let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;

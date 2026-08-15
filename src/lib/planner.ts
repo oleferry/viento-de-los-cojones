@@ -16,9 +16,11 @@ import {
   haversine,
   overlapFraction,
   polygonLoop,
+  polylineLength,
   resample,
   samplingGrid,
   toSegments,
+  trimSpurs,
   uTurns,
 } from "./geo";
 import { DEFAULT_RIDER, calmTime, evaluateRoute } from "./physics";
@@ -170,9 +172,18 @@ export async function plan(
   const buildShape = (
     id: string,
     label: string,
-    geometry: RouteGeometry,
+    bruta: RouteGeometry,
     headingDeg?: number
   ): Shaped => {
+    // Se recortan los desvios de ida y vuelta ANTES de nada. Descartar una ruta
+    // de 80 km por un pico de 300 m es tirar el trabajo, y como el pico va y
+    // viene por la misma carretera, quitarlo deja un recorrido valido.
+    const limpias = trimSpurs(bruta.coords);
+    const geometry: RouteGeometry =
+      limpias.length === bruta.coords.length
+        ? bruta
+        : { ...bruta, coords: limpias, distanceM: polylineLength(limpias) };
+
     const fwd = resample(geometry.coords, SEGMENT_STEP_M);
     return {
       id,
