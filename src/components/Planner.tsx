@@ -439,13 +439,21 @@ export default function Planner() {
           <Toggle on={showArrows} onChange={setShowArrows} label="Viento" />
           <Toggle on={showAlts} onChange={setShowAlts} label="Alternativas" />
         </div>
-        <div className="seg mt-2 hidden grid-cols-2 md:grid">
-          <button data-on={mapTheme === "dark"} onClick={() => setMapTheme("dark")}>
-            Oscuro
-          </button>
-          <button data-on={mapTheme === "light"} onClick={() => setMapTheme("light")}>
-            Claro
-          </button>
+        {/*
+          El envoltorio no es decorativo: `.seg` declara `display: grid` y en la
+          hoja va DESPUES de las utilidades de Tailwind, asi que con la misma
+          especificidad le gana a `hidden` y estos botones seguian ocupando
+          sitio en movil. Ocultando el contenedor no hay pelea posible.
+        */}
+        <div className="hidden md:block">
+          <div className="seg mt-2 grid-cols-2">
+            <button data-on={mapTheme === "dark"} onClick={() => setMapTheme("dark")}>
+              Oscuro
+            </button>
+            <button data-on={mapTheme === "light"} onClick={() => setMapTheme("light")}>
+              Claro
+            </button>
+          </div>
         </div>
       </div>
 
@@ -469,7 +477,7 @@ export default function Planner() {
         <button
           type="button"
           onClick={() => setSheetOpen((v) => !v)}
-          className="sticky top-0 z-10 flex w-full justify-center py-3 md:hidden"
+          className="sticky top-0 z-10 flex min-h-11 w-full items-center justify-center md:hidden"
           style={{ background: "linear-gradient(180deg,rgba(20,26,38,.97),rgba(20,26,38,0))" }}
           aria-label={sheetOpen ? "Contraer panel" : "Expandir panel"}
           aria-expanded={sheetOpen}
@@ -499,19 +507,21 @@ export default function Planner() {
 
           {/* Pestanas: solo en movil y solo cuando hay algo que ensenar. */}
           {result && (
-            <div className="seg grid-cols-2 md:hidden">
-              <button
-                data-on={movilPestana === "ajustes"}
-                onClick={() => setMovilPestana("ajustes")}
-              >
-                Ajustes
-              </button>
-              <button
-                data-on={movilPestana === "resultado"}
-                onClick={() => setMovilPestana("resultado")}
-              >
-                Resultado
-              </button>
+            <div className="md:hidden">
+              <div className="seg grid-cols-2">
+                <button
+                  data-on={movilPestana === "ajustes"}
+                  onClick={() => setMovilPestana("ajustes")}
+                >
+                  Ajustes
+                </button>
+                <button
+                  data-on={movilPestana === "resultado"}
+                  onClick={() => setMovilPestana("resultado")}
+                >
+                  Resultado
+                </button>
+              </div>
             </div>
           )}
 

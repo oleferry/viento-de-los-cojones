@@ -137,7 +137,9 @@ select.field {
 .seg > button {
   border-radius: 0.55rem;
   padding: 0.45rem 0.4rem;
-  font-size: 0.78rem;
+  /* Con el dedo hacen falta 44 px; con raton 29 sobran y aprietan menos. */
+  min-height: 44px;
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--color-muted);
   background: transparent;
@@ -297,6 +299,24 @@ input[type="range"]::-moz-range-thumb {
   );
   transform: translateX(-100%);
   animation: shimmer 1.4s infinite;
+}
+
+/* Con raton, los controles pueden ser mas compactos. */
+@media (pointer: fine) {
+  .seg > button {
+    min-height: 0;
+    font-size: 0.78rem;
+  }
+  .btn {
+    min-height: 0;
+  }
+}
+
+/* Y con el dedo, nada por debajo de 44 px. */
+.btn,
+.field,
+select.field {
+  min-height: 44px;
 }
 
 @media (prefers-reduced-motion: reduce) {
