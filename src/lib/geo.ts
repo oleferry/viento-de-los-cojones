@@ -131,8 +131,11 @@ export function toSegments(coords: number[][]): Segment[] {
  * Se resuelve troceando en celdas de `cellM` metros y contando la distancia
  * cuyo tramo cae en una celda ya visitada. Comparar segmentos dos a dos seria
  * O(n^2); esto es lineal y, con celdas del tamano de un tramo, igual de fiable.
+ *
+ * La celda es pequena (50 m) a proposito: con celdas grandes un desvio corto de
+ * ida y vuelta cae entero en una sola celda y no se cuenta como repetido.
  */
-export function overlapFraction(coords: number[][], cellM = 120): number {
+export function overlapFraction(coords: number[][], cellM = 50): number {
   if (coords.length < 3) return 0;
   const seen = new Set<string>();
   let repeated = 0;
@@ -171,37 +174,56 @@ export function overlapFraction(coords: number[][], cellM = 120): number {
  * de una carretera. Se ignoran los primeros y ultimos metros, porque en un
  * bucle salir y volver al mismo portal es justo lo que se pide.
  */
-export function uTurns(coords: number[][], ventanaM = 220): number {
-  const pts = resample(coords, 60);
+export function uTurns(coords: number[][]): number {
+  const PASO_M = 25;
+  const pts = resample(coords, PASO_M);
   if (pts.length < 8) return 0;
 
-  const paso = Math.max(2, Math.round(ventanaM / 60));
   const total = polylineLength(pts);
-  let recorrido = 0;
+  // Distancia acumulada hasta cada punto, para localizar los giros.
+  const acum: number[] = [0];
+  for (let i = 1; i < pts.length; i++) {
+    acum.push(
+      acum[i - 1] +
+        haversine([pts[i - 1][0], pts[i - 1][1]], [pts[i][0], pts[i][1]])
+    );
+  }
+
+  /*
+   * Varias escalas a la vez. Con una sola ventana se escapan la mitad de los
+   * desvios: uno de 150 m es invisible para una ventana de 220 porque el rumbo
+   * promediado se lo come, y uno de 600 m no se ve con una ventana de 80
+   * porque dentro de ella la carretera parece recta. Se buscan en las tres y
+   * se juntan los que caigan en el mismo sitio.
+   */
+  const encontrados: number[] = [];
+  for (const ventanaM of [80, 180, 350]) {
+    const paso = Math.max(2, Math.round(ventanaM / PASO_M));
+    for (let i = paso; i < pts.length - paso; i++) {
+      const d = acum[i];
+      // Los extremos no cuentan: en un bucle se sale y se vuelve al mismo sitio.
+      if (d < ventanaM * 1.5 || total - d < ventanaM * 1.5) continue;
+
+      const entra = bearing(
+        [pts[i - paso][0], pts[i - paso][1]],
+        [pts[i][0], pts[i][1]]
+      );
+      const sale = bearing(
+        [pts[i][0], pts[i][1]],
+        [pts[i + paso][0], pts[i + paso][1]]
+      );
+      if (Math.abs(angleDiff(entra, sale)) > 135) encontrados.push(d);
+    }
+  }
+
+  // Agrupamos: el mismo giro aparece en varias escalas y en puntos contiguos.
+  encontrados.sort((a, b) => a - b);
   let cuenta = 0;
   let ultimo = -Infinity;
-
-  for (let i = paso; i < pts.length - paso; i++) {
-    recorrido += haversine(
-      [pts[i - 1][0], pts[i - 1][1]],
-      [pts[i][0], pts[i][1]]
-    );
-    // Los extremos no cuentan: en un bucle se sale y se vuelve al mismo sitio.
-    if (recorrido < ventanaM * 2 || total - recorrido < ventanaM * 2) continue;
-    // Ni dos veces el mismo giro.
-    if (recorrido - ultimo < ventanaM * 2) continue;
-
-    const entra = bearing(
-      [pts[i - paso][0], pts[i - paso][1]],
-      [pts[i][0], pts[i][1]]
-    );
-    const sale = bearing(
-      [pts[i][0], pts[i][1]],
-      [pts[i + paso][0], pts[i + paso][1]]
-    );
-    if (Math.abs(angleDiff(entra, sale)) > 140) {
+  for (const d of encontrados) {
+    if (d - ultimo > 400) {
       cuenta++;
-      ultimo = recorrido;
+      ultimo = d;
     }
   }
   return cuenta;

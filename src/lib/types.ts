@@ -1,7 +1,7 @@
 export type LonLat = [number, number]; // [lon, lat] (orden GeoJSON)
 
 export type Surface = "carretera" | "camino" | "mixto";
-export type Shape = "circular" | "lineal";
+export type Shape = "circular" | "lineal" | "importada";
 /**
  * tailwind_home: prioriza volver con el aire a favor (aunque cueste mas ir).
  * min_effort:    minimiza el esfuerzo/tiempo total contra el aire.
@@ -25,6 +25,16 @@ export interface PlanRequest {
   /** Cuantas horas alrededor de `departureMs` se exploran para sugerir mejor hora. */
   flexHours?: number;
   /** Desfase horario del usuario en minutos (para saber que es "de dia"). */
+  tzOffsetMinutes?: number;
+  rider?: Partial<RiderProfile>;
+}
+
+/** Analisis de una ruta que trae la persona, sin trazar nada. */
+export interface AnalyzeRequest {
+  coords: number[][];
+  name?: string;
+  departureMs?: number;
+  flexHours?: number;
   tzOffsetMinutes?: number;
   rider?: Partial<RiderProfile>;
 }

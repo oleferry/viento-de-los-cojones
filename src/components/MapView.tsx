@@ -181,7 +181,7 @@ export interface MapViewProps {
   alternatives?: Candidate[];
   start?: LonLat | null;
   end?: LonLat | null;
-  shape: "circular" | "lineal";
+  shape: "circular" | "lineal" | "importada";
   picking: null | "start" | "end";
   onPick?: (p: LonLat) => void;
   showArrows: boolean;

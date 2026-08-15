@@ -150,6 +150,13 @@ export interface RiderSetup {
   ftpW: number;
   /** Factor de intensidad: fraccion del FTP que piensas sostener. */
   intensity: number;
+}
+
+/**
+ * Con quien sales HOY. Deliberadamente fuera del perfil: la bici y las piernas
+ * son tuyas siempre, pero el grupo cambia de una salida a otra.
+ */
+export interface GroupSetup {
   /** Cuantos vais, tu incluido. 1 = solo. */
   groupSize: number;
   /** Fraccion del tiempo que vas resguardado (0-1). */
@@ -170,9 +177,9 @@ export const DEFAULT_SETUP: RiderSetup = {
   tyres: "race-tl",
   ftpW: 240,
   intensity: 0.72,
-  groupSize: 1,
-  draftFraction: 0,
 };
+
+export const DEFAULT_GROUP: GroupSetup = { groupSize: 1, draftFraction: 0 };
 
 const find = <T extends { id: string }>(list: T[], id: string, fallback: T): T =>
   list.find((x) => x.id === id) ?? fallback;

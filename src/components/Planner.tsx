@@ -8,8 +8,12 @@ import RouteProfile from "./RouteProfile";
 import HourStrip from "./HourStrip";
 import Outlook from "./Outlook";
 import RiderSheet from "./RiderSheet";
+import GroupPicker from "./GroupPicker";
+import TrackImport from "./TrackImport";
 import { downloadGPX } from "@/lib/gpx";
+import type { ImportedTrack } from "@/lib/gpxImport";
 import {
+  DEFAULT_GROUP,
   DEFAULT_SETUP,
   computeCdA,
   computeCrr,
@@ -17,6 +21,7 @@ import {
   intensitySanity,
   targetPower,
   totalMass,
+  type GroupSetup,
   type RiderSetup,
 } from "@/lib/equipment";
 import {
@@ -56,6 +61,7 @@ const MODES: { id: WindMode; label: string; hint: string }[] = [
 ];
 
 const SETUP_KEY = "vdc.rider.v1";
+const GROUP_KEY = "vdc.group.v1";
 
 function localInputValue(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -73,6 +79,8 @@ export default function Planner() {
   const [surface, setSurface] = useState<Surface>("carretera");
   const [windMode, setWindMode] = useState<WindMode>("tailwind_home");
   const [setup, setSetup] = useState<RiderSetup>(DEFAULT_SETUP);
+  const [group, setGroup] = useState<GroupSetup>(DEFAULT_GROUP);
+  const [track, setTrack] = useState<ImportedTrack | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [departure, setDeparture] = useState(() => {
     const d = new Date();
@@ -111,6 +119,24 @@ export default function Planner() {
     }
   }, [setup]);
 
+  // El grupo se recuerda aparte del perfil: cambia de una salida a otra.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(GROUP_KEY);
+      if (raw) setGroup({ ...DEFAULT_GROUP, ...JSON.parse(raw) });
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(GROUP_KEY, JSON.stringify(group));
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, [group]);
+
   /** Lo que el motor necesita, derivado del perfil y del firme elegido. */
   const riderPayload = useMemo(
     () => ({
@@ -119,10 +145,10 @@ export default function Planner() {
       cda: computeCdA(setup).total,
       crr: computeCrr(setup, surface),
       drivetrain: 0.975,
-      draftMultiplier: draftMultiplier(setup.groupSize),
-      draftFraction: setup.groupSize > 1 ? setup.draftFraction : 0,
+      draftMultiplier: draftMultiplier(group.groupSize),
+      draftFraction: group.groupSize > 1 ? group.draftFraction : 0,
     }),
-    [setup, surface]
+    [setup, surface, group]
   );
 
   // --- estado en la URL, para poder compartir un plan --------------------
@@ -171,33 +197,50 @@ export default function Planner() {
   const shown: Candidate | null =
     candidates.find((c) => c.id === chosenId) ?? result?.best ?? null;
 
-  const canPlan = !!start && (shape === "circular" || !!end);
+  const canPlan =
+    shape === "importada"
+      ? !!track
+      : !!start && (shape === "circular" || !!end);
 
   const run = useCallback(
     async (overrideDepartureMs?: number) => {
-      if (!start) return;
+      if (shape === "importada" ? !track : !start) return;
       inflight.current?.abort();
       const ac = new AbortController();
       inflight.current = ac;
       setBusy(true);
       setError(null);
       try {
-        const res = await fetch("/api/plan", {
+        // Una ruta importada no hay que trazarla: solo se simula, asi que va a
+        // otro endpoint que no gasta ni una peticion de enrutado.
+        const importada = shape === "importada" && track;
+        const res = await fetch(importada ? "/api/analyze" : "/api/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: ac.signal,
-          body: JSON.stringify({
-            start,
-            end: shape === "lineal" ? end : undefined,
-            shape,
-            distanceKm,
-            surface,
-            windMode,
-            departureMs: overrideDepartureMs ?? new Date(departure).getTime(),
-            flexHours: overrideDepartureMs != null ? 0 : flexHours,
-            tzOffsetMinutes: -new Date().getTimezoneOffset(),
-            rider: riderPayload,
-          }),
+          body: JSON.stringify(
+            importada
+              ? {
+                  coords: track.coords,
+                  name: track.name,
+                  departureMs: overrideDepartureMs ?? new Date(departure).getTime(),
+                  flexHours: overrideDepartureMs != null ? 0 : flexHours,
+                  tzOffsetMinutes: -new Date().getTimezoneOffset(),
+                  rider: riderPayload,
+                }
+              : {
+                  start,
+                  end: shape === "lineal" ? end : undefined,
+                  shape,
+                  distanceKm,
+                  surface,
+                  windMode,
+                  departureMs: overrideDepartureMs ?? new Date(departure).getTime(),
+                  flexHours: overrideDepartureMs != null ? 0 : flexHours,
+                  tzOffsetMinutes: -new Date().getTimezoneOffset(),
+                  rider: riderPayload,
+                }
+          ),
         });
         // Nunca `res.json()` a pelo: cuando la plataforma corta la funcion
         // devuelve texto plano ("An error occurred with your deployment...") y
@@ -230,7 +273,7 @@ export default function Planner() {
         setBusy(false);
       }
     },
-    [start, end, shape, distanceKm, surface, windMode, departure, flexHours, riderPayload]
+    [start, end, shape, distanceKm, surface, windMode, departure, flexHours, riderPayload, track]
   );
 
   const onPick = useCallback(
@@ -344,14 +387,21 @@ export default function Planner() {
 
           {/* --- salida / llegada --- */}
           <div className="space-y-3">
-            <div className="seg grid-cols-2">
-              {(["circular", "lineal"] as Shape[]).map((s) => (
+            <div className="seg grid-cols-3">
+              {(["circular", "lineal", "importada"] as Shape[]).map((s) => (
                 <button key={s} data-on={shape === s} onClick={() => setShape(s)}>
-                  {s === "circular" ? "Circular" : "Lineal (A → B)"}
+                  {s === "circular" ? "Circular" : s === "lineal" ? "A → B" : "Mi ruta"}
                 </button>
               ))}
             </div>
 
+            {shape === "importada" && (
+              <div className="rise">
+                <TrackImport track={track} onLoad={setTrack} />
+              </div>
+            )}
+
+            {shape !== "importada" && (
             <PlaceInput
               label="Salida"
               placeholder="Villalón de Campos, Medina de Rioseco…"
@@ -365,6 +415,8 @@ export default function Planner() {
               onPickOnMap={() => setPicking(picking === "start" ? null : "start")}
               picking={picking === "start"}
             />
+            )}
+            {shape !== "importada" && (
             <button
               type="button"
               onClick={useMyLocation}
@@ -372,6 +424,7 @@ export default function Planner() {
             >
               usar mi ubicación
             </button>
+            )}
 
             {shape === "lineal" && (
               <div className="rise">
@@ -425,7 +478,7 @@ export default function Planner() {
           )}
 
           {/* --- firme --- */}
-          <div>
+          <div className={shape === "importada" ? "hidden" : undefined}>
             <div className="label mb-1.5">Por dónde</div>
             <div className="seg grid-cols-3">
               {SURFACES.map((s) => (
@@ -442,7 +495,7 @@ export default function Planner() {
           </div>
 
           {/* --- estrategia de viento --- */}
-          <div>
+          <div className={shape === "importada" ? "hidden" : undefined}>
             <div className="label mb-1.5">Qué prefieres</div>
             <div className="seg">
               {MODES.map((m) => (
@@ -486,6 +539,8 @@ export default function Planner() {
             </div>
           </div>
 
+          <GroupPicker group={group} onChange={setGroup} />
+
           {/* --- perfil de ciclista --- */}
           <button
             type="button"
@@ -505,8 +560,7 @@ export default function Planner() {
               <span className="block text-[0.8rem] font-semibold">Perfil de ciclista</span>
               <span className="num block truncate text-[0.66rem] text-[var(--color-faint)]">
                 {riderPayload.powerW} W · CdA {riderPayload.cda.toFixed(3)} ·{" "}
-                {riderPayload.massKg.toFixed(0)} kg ·{" "}
-                {setup.groupSize > 1 ? `grupo de ${setup.groupSize}` : "solo"}
+                {riderPayload.massKg.toFixed(0)} kg
               </span>
             </span>
             <span className="shrink-0 text-[var(--color-faint)]">›</span>
@@ -520,8 +574,10 @@ export default function Planner() {
             {busy ? (
               <>
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black/70" />
-                Buscando por dónde…
+                {shape === "importada" ? "Mirando el aire…" : "Buscando por dónde…"}
               </>
+            ) : shape === "importada" ? (
+              "Analizar mi ruta"
             ) : (
               "Trazar ruta"
             )}

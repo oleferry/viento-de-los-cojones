@@ -12,8 +12,6 @@ import {
   WHEELS,
   computeCdA,
   computeCrr,
-  defaultDraftFraction,
-  draftMultiplier,
   targetPower,
   totalMass,
   type RiderSetup,
@@ -32,8 +30,6 @@ interface Props {
   onClose: () => void;
 }
 
-const GROUPS = [1, 2, 3, 4, 6, 8, 15, 30];
-
 export default function RiderSheet({ setup, onChange, surface, onClose }: Props) {
   const set = <K extends keyof RiderSetup>(key: K, value: RiderSetup[K]) =>
     onChange((prev) => ({ ...prev, [key]: value }));
@@ -42,9 +38,6 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
   const crr = useMemo(() => computeCrr(setup, surface), [setup, surface]);
   const power = targetPower(setup);
   const mass = totalMass(setup);
-  const draftM = draftMultiplier(setup.groupSize);
-  const aeroMult =
-    1 - setup.draftFraction + setup.draftFraction * draftM;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
@@ -152,69 +145,6 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
                 onChange={(v) => set("clothing", v)} />
               <Select label="Casco" items={HELMETS} value={setup.helmet}
                 onChange={(v) => set("helmet", v)} />
-            </div>
-          </section>
-
-          {/* ---------- grupo ---------- */}
-          <section className="space-y-3 md:col-span-2">
-            <SectionTitle>Con quién vas</SectionTitle>
-            <div className="grid gap-3 md:grid-cols-[auto_1fr] md:items-start">
-              <div>
-                <div className="label mb-1.5">Tamaño del grupo</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {GROUPS.map((n) => (
-                    <button
-                      key={n}
-                      onClick={() =>
-                        onChange((prev) => ({
-                          ...prev,
-                          groupSize: n,
-                          draftFraction: defaultDraftFraction(n),
-                        }))
-                      }
-                      data-on={setup.groupSize === n}
-                      className="num h-9 w-11 rounded-lg border text-[0.8rem] font-semibold transition-all"
-                      style={{
-                        borderColor:
-                          setup.groupSize === n ? "rgba(255,138,61,.5)" : "var(--color-line)",
-                        background:
-                          setup.groupSize === n ? "rgba(255,138,61,.14)" : "rgba(255,255,255,.02)",
-                        color:
-                          setup.groupSize === n ? "var(--color-accent)" : "var(--color-muted)",
-                      }}
-                    >
-                      {n === 1 ? "solo" : n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-1.5 flex items-baseline justify-between">
-                  <span className="label">Tiempo a rueda</span>
-                  <span className="num text-sm font-bold text-[var(--color-accent)]">
-                    {Math.round(setup.draftFraction * 100)}%
-                  </span>
-                </div>
-                <input type="range" min={0} max={0.95} step={0.05}
-                  value={setup.draftFraction}
-                  disabled={setup.groupSize <= 1}
-                  onChange={(e) => set("draftFraction", Number(e.target.value))} />
-                <p className="mt-1.5 text-[0.66rem] leading-snug text-[var(--color-faint)]">
-                  {setup.groupSize <= 1 ? (
-                    "Yendo solo te comes todo el aire."
-                  ) : (
-                    <>
-                      Relevando a partes iguales en un grupo de {setup.groupSize} irías tapado el{" "}
-                      {Math.round(defaultDraftFraction(setup.groupSize) * 100)}% del tiempo. A rueda
-                      ahorras un {Math.round((1 - draftM) * 100)}% de arrastre, así que de media
-                      pagas el <span className="num">{Math.round(aeroMult * 100)}%</span> del aire.
-                      El rebufo tapa menos cuanto más de lado entra el viento, y eso se aplica tramo
-                      a tramo.
-                    </>
-                  )}
-                </p>
-              </div>
             </div>
           </section>
 
