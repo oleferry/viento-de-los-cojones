@@ -344,8 +344,20 @@ export async function plan(
       if (asfaltadas.length) {
         shapes.length = 0;
         shapes.push(...asfaltadas);
-      } else {
+      } else if (shapes.some((s) => s.geometry.pavedFrac != null)) {
+        // Si ninguno llega al umbral, el asfalto manda de forma lexicografica:
+        // nos quedamos con los que rondan al mejor y que el viento desempate
+        // entre ellos. Penalizarlo dentro de la puntuacion no bastaba —
+        // se avisaba de que el mejor tenia un 85% y se servia uno del 68%,
+        // porque una ventaja de viento se comia la penalizacion.
         const mejor = Math.max(...shapes.map((s) => s.geometry.pavedFrac ?? 0));
+        const cerca = shapes.filter(
+          (s) => (s.geometry.pavedFrac ?? 0) >= mejor - 0.04
+        );
+        if (cerca.length) {
+          shapes.length = 0;
+          shapes.push(...cerca);
+        }
         warnings.push(
           `No hay ningún bucle de esa distancia enteramente asfaltado desde ahí: el mejor lleva un ${Math.round(mejor * 100)}% de asfalto.`
         );

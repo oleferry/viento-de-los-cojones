@@ -31,17 +31,32 @@ Nacido en Tierra de Campos, donde el aire es una variable de entrenamiento.
    control explícito sobre *por dónde sales*, que es justo la palanca que mueve
    el viento. Luego refina las mejores para ajustar la distancia real.
 
-2. **Descarga la previsión.** Una sola llamada a Open-Meteo para una rejilla de
+   Con clave de OpenRouteService se añaden además bucles trazados por el propio
+   router (`round_trip`), que sigue la red de carreteras en vez de perseguir
+   vértices inventados. Los dos generadores compiten y decide la puntuación.
+
+2. **Descarta lo que no es un recorrido.** El fallo clásico de generar bucles
+   por waypoints: si un vértice cae en mitad del campo, el router va a tocarlo
+   y se vuelve por el mismo sitio. Un pico de ida y vuelta con giro de 180.
+
+   `overlapFraction()` trocea la ruta en celdas de 120 m y mide qué fracción
+   cae en una celda ya visitada — lineal, en vez del O(n²) de comparar
+   segmentos dos a dos. Se descarta lo que pase del 12% y se penaliza fuerte lo
+   que quede, con peso suficiente para ganarle a una diferencia moderada de
+   viento. Medido antes y después sobre las mismas rutas: del 17–26% repetido
+   al 8–14%.
+
+3. **Descarga la previsión.** Una sola llamada a Open-Meteo para una rejilla de
    7 puntos que cubre la zona de la ruta. El viento se interpola en el espacio
    por distancia inversa y en el tiempo linealmente, siempre sobre las
    **componentes u/v** — promediar grados daría disparates cuando el viento
    cruza el norte.
 
-3. **Simula avanzando el reloj.** Trocea la ruta en tramos de 400 m y consulta
+4. **Simula avanzando el reloj.** Trocea la ruta en tramos de 400 m y consulta
    la previsión *en el instante en el que pasarías por cada punto*, no en el de
    salida. En una ruta de tres horas eso cambia bastante el resultado.
 
-4. **Resuelve el balance de potencia.** Por cada tramo, con el viento proyectado
+5. **Resuelve el balance de potencia.** Por cada tramo, con el viento proyectado
    sobre el rumbo y la pendiente:
 
    ```
@@ -52,9 +67,9 @@ Nacido en Tierra de Campos, donde el aire es una variable de entrenamiento.
    El viento a 10 m (que es lo que dan los modelos) se corrige a la altura del
    ciclista con un perfil logarítmico sobre campo abierto (z₀ = 0,05 m).
 
-5. **Puntúa.** Tiempo total, fracción a favor y en contra, y el viento medio en
-   el último 35% de la ruta. Las tres estrategias son pesos distintos sobre esos
-   mismos números.
+6. **Puntúa.** Tiempo total, fracción a favor y en contra, viento medio en
+   el último 35% de la ruta, ruta repetida y — si has pedido carretera — firme.
+   Las tres estrategias son pesos distintos sobre esos mismos números.
 
 ## Perfil de ciclista
 
@@ -110,6 +125,21 @@ de un modelo concreto es una estimación.
 El enrutado va **en cadena y conmuta solo**: si el primero se cae o satura, se
 pasa al siguiente en vez de tumbar el plan. Sin clave el orden es BRouter →
 OSRM; con clave, OpenRouteService → BRouter → OSRM.
+
+### Carretera es una obligación, camino es una preferencia
+
+La asimetría es real: una gravel rueda perfectamente por asfalto, pero una
+cubierta de 25 en un camino de tierra es un pinchazo y una vuelta andando. Así
+que cuando se pide **carretera** se descartan los bucles por debajo del 95% de
+asfalto y, entre los que quedan, cada metro de tierra penaliza en la
+puntuación. Si ninguno llega, se avisa con el porcentaje real en vez de colar
+tierra por la puerta de atrás.
+
+El dato de firme sale de `extras.surface` de OpenRouteService, que es medido.
+Sin clave no hay reparto de firme, y entonces el filtro no puede aplicarse.
+
+> Nota: `avoid_features: ["unpavedroads"]` **no** es válido en los perfiles
+> ciclistas de ORS. Devuelve un error 2003 y tumba la petición entera.
 
 Los perfiles de BRouter encajan casi uno a uno con lo que se pide:
 
