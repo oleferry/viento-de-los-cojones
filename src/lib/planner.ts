@@ -329,7 +329,17 @@ export async function plan(
       );
     }
 
-    // Fuera las que se pisan a si mismas, salvo que no quede nada mejor.
+    // Los filtros van en este orden a proposito. Primero la distancia: no
+    // sirve de nada una ruta impecable de 57 km cuando se han pedido 40.
+    const cerca = shapes.filter(
+      (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
+    );
+    if (cerca.length >= 2) {
+      shapes.length = 0;
+      shapes.push(...cerca);
+    }
+
+    // Despues, fuera las que se pisan a si mismas.
     const limpias = shapes.filter((s) => s.overlap <= MAX_OVERLAP);
     if (limpias.length >= 2) {
       shapes.length = 0;
