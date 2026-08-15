@@ -1,0 +1,788 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import PlaceInput from "./PlaceInput";
+import WindRose from "./WindRose";
+import RouteProfile from "./RouteProfile";
+import HourStrip from "./HourStrip";
+import { downloadGPX } from "@/lib/gpx";
+import {
+  beaufort,
+  cardinal,
+  fmtDay,
+  fmtDelta,
+  fmtDuration,
+  fmtHour,
+} from "@/lib/format";
+import type {
+  Candidate,
+  LonLat,
+  PlanResponse,
+  Shape,
+  Surface,
+  WindMode,
+} from "@/lib/types";
+
+const MapView = dynamic(() => import("./MapView"), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-[#080b11]" />,
+});
+
+const SURFACES: { id: Surface; label: string; hint: string }[] = [
+  { id: "carretera", label: "Carretera", hint: "asfalto, bici de ruta" },
+  { id: "mixto", label: "Mixto", hint: "asfalto y pistas" },
+  { id: "camino", label: "Camino", hint: "gravel y tierra" },
+];
+
+const MODES: { id: WindMode; label: string; hint: string }[] = [
+  { id: "tailwind_home", label: "Volver a favor", hint: "el regalo, al final" },
+  { id: "hard_first", label: "El palo primero", hint: "de cara al salir, a favor al volver" },
+  { id: "min_effort", label: "Menos esfuerzo", hint: "minimiza el viento en toda la ruta" },
+];
+
+const PRESETS = {
+  cicloturista: { label: "Cicloturista", powerW: 130, cda: 0.36, crr: 0.006, massKg: 85 },
+  carretera: { label: "Carretera", powerW: 180, cda: 0.3, crr: 0.004, massKg: 78 },
+  gravel: { label: "Gravel", powerW: 165, cda: 0.34, crr: 0.008, massKg: 85 },
+  mtb: { label: "MTB", powerW: 170, cda: 0.42, crr: 0.012, massKg: 88 },
+} as const;
+type PresetKey = keyof typeof PRESETS;
+
+function localInputValue(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(0)}`;
+}
+
+export default function Planner() {
+  const [startText, setStartText] = useState("");
+  const [start, setStart] = useState<LonLat | null>(null);
+  const [endText, setEndText] = useState("");
+  const [end, setEnd] = useState<LonLat | null>(null);
+
+  const [shape, setShape] = useState<Shape>("circular");
+  const [distanceKm, setDistanceKm] = useState(60);
+  const [surface, setSurface] = useState<Surface>("carretera");
+  const [windMode, setWindMode] = useState<WindMode>("tailwind_home");
+  const [preset, setPreset] = useState<PresetKey>("carretera");
+  const [powerW, setPowerW] = useState<number>(PRESETS.carretera.powerW);
+  const [departure, setDeparture] = useState(() => {
+    const d = new Date();
+    d.setHours(d.getHours() + 1, 0, 0, 0);
+    return localInputValue(d);
+  });
+  const [flexHours, setFlexHours] = useState(3);
+
+  const [picking, setPicking] = useState<null | "start" | "end">(null);
+  const [result, setResult] = useState<PlanResponse | null>(null);
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hoverKm, setHoverKm] = useState<number | null>(null);
+  const [showArrows, setShowArrows] = useState(true);
+  const [showAlts, setShowAlts] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const inflight = useRef<AbortController | null>(null);
+
+  // --- estado en la URL, para poder compartir un plan --------------------
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const s = q.get("s")?.split(",").map(Number);
+    if (s?.length === 2 && s.every(Number.isFinite)) {
+      setStart([s[0], s[1]]);
+      setStartText(q.get("sn") ?? `${s[1].toFixed(4)}, ${s[0].toFixed(4)}`);
+    }
+    const e = q.get("e")?.split(",").map(Number);
+    if (e?.length === 2 && e.every(Number.isFinite)) {
+      setEnd([e[0], e[1]]);
+      setEndText(q.get("en") ?? `${e[1].toFixed(4)}, ${e[0].toFixed(4)}`);
+    }
+    if (q.get("shape") === "lineal") setShape("lineal");
+    const d = Number(q.get("d"));
+    if (Number.isFinite(d) && d >= 5 && d <= 400) setDistanceKm(d);
+    const sf = q.get("sf") as Surface | null;
+    if (sf && SURFACES.some((x) => x.id === sf)) setSurface(sf);
+    const wm = q.get("m") as WindMode | null;
+    if (wm && MODES.some((x) => x.id === wm)) setWindMode(wm);
+  }, []);
+
+  const shareUrl = useMemo(() => {
+    if (typeof window === "undefined" || !start) return "";
+    const q = new URLSearchParams({
+      s: `${start[0]},${start[1]}`,
+      sn: startText,
+      shape,
+      d: String(distanceKm),
+      sf: surface,
+      m: windMode,
+    });
+    if (shape === "lineal" && end) {
+      q.set("e", `${end[0]},${end[1]}`);
+      q.set("en", endText);
+    }
+    return `${window.location.origin}${window.location.pathname}?${q}`;
+  }, [start, startText, end, endText, shape, distanceKm, surface, windMode]);
+
+  const candidates = useMemo(
+    () => (result ? [result.best, ...result.alternatives] : []),
+    [result]
+  );
+  const shown: Candidate | null =
+    candidates.find((c) => c.id === chosenId) ?? result?.best ?? null;
+
+  const canPlan = !!start && (shape === "circular" || !!end);
+
+  const run = useCallback(
+    async (overrideDepartureMs?: number) => {
+      if (!start) return;
+      inflight.current?.abort();
+      const ac = new AbortController();
+      inflight.current = ac;
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: ac.signal,
+          body: JSON.stringify({
+            start,
+            end: shape === "lineal" ? end : undefined,
+            shape,
+            distanceKm,
+            surface,
+            windMode,
+            departureMs: overrideDepartureMs ?? new Date(departure).getTime(),
+            flexHours: overrideDepartureMs != null ? 0 : flexHours,
+            rider: { ...PRESETS[preset], powerW },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
+        setResult((prev) =>
+          overrideDepartureMs != null && prev
+            ? { ...data, hours: prev.hours } // conservamos la franja horaria original
+            : data
+        );
+        setChosenId(null);
+        setSheetOpen(true);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [start, end, shape, distanceKm, surface, windMode, departure, flexHours, preset, powerW]
+  );
+
+  const onPick = useCallback(
+    (p: LonLat) => {
+      const label = `${p[1].toFixed(5)}, ${p[0].toFixed(5)}`;
+      if (picking === "start") {
+        setStart(p);
+        setStartText(label);
+      } else if (picking === "end") {
+        setEnd(p);
+        setEndText(label);
+      }
+      setPicking(null);
+    },
+    [picking]
+  );
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const p: LonLat = [
+        Number(pos.coords.longitude.toFixed(6)),
+        Number(pos.coords.latitude.toFixed(6)),
+      ];
+      setStart(p);
+      setStartText(`${p[1].toFixed(5)}, ${p[0].toFixed(5)}`);
+    });
+  };
+
+  return (
+    <main className="relative h-dvh w-full overflow-hidden">
+      <MapView
+        best={shown}
+        alternatives={result ? candidates.filter((c) => c.id !== shown?.id) : []}
+        start={start}
+        end={end}
+        shape={shape}
+        picking={picking}
+        onPick={onPick}
+        showArrows={showArrows}
+        showAlternatives={showAlts}
+        hoverKm={hoverKm}
+      />
+
+      {/* leyenda flotante */}
+      <div className="glass pointer-events-auto absolute bottom-6 right-3 z-20 hidden rounded-xl px-3 py-2 md:block">
+        <div className="label mb-1.5">Viento en ruta</div>
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-24 rounded-full bg-gradient-to-r from-[#34d399] via-[#facc15] to-[#ef4444]" />
+        </div>
+        <div className="mt-1 flex justify-between text-[0.62rem] text-[var(--color-faint)]">
+          <span>a favor</span>
+          <span>de cara</span>
+        </div>
+        <div className="mt-2 flex flex-col gap-1 text-[0.68rem]">
+          <Toggle on={showArrows} onChange={setShowArrows} label="Flechas de viento" />
+          <Toggle on={showAlts} onChange={setShowAlts} label="Alternativas" />
+        </div>
+      </div>
+
+      {/* panel */}
+      <div
+        className={[
+          "glass scroll-thin absolute z-30 overflow-y-auto",
+          "inset-x-0 bottom-0 max-h-[86dvh] rounded-t-3xl",
+          sheetOpen ? "" : "translate-y-[calc(100%-8.5rem)]",
+          "transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)]",
+          "md:inset-y-3 md:left-3 md:right-auto md:w-[26rem] md:max-h-none md:translate-y-0 md:rounded-2xl",
+        ].join(" ")}
+      >
+        {/* asa del bottom sheet */}
+        <button
+          type="button"
+          onClick={() => setSheetOpen((v) => !v)}
+          className="sticky top-0 z-10 flex w-full justify-center py-2.5 md:hidden"
+          style={{ background: "linear-gradient(180deg,rgba(20,26,38,.96),rgba(20,26,38,0))" }}
+          aria-label={sheetOpen ? "Contraer panel" : "Expandir panel"}
+        >
+          <span className="h-1 w-10 rounded-full bg-white/25" />
+        </button>
+
+        <div className="space-y-4 px-4 pb-6 md:px-5 md:pt-5">
+          <header className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[1.05rem] font-bold leading-tight tracking-tight">
+                Viento de los cojones
+              </h1>
+              <p className="mt-0.5 text-[0.72rem] leading-snug text-[var(--color-faint)]">
+                Rutas trazadas según sopla, hora a hora.
+              </p>
+            </div>
+            <a
+              href="https://open-meteo.com/"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-1 shrink-0 text-[0.62rem] text-[var(--color-faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--color-muted)]"
+            >
+              datos
+            </a>
+          </header>
+
+          {/* --- salida / llegada --- */}
+          <div className="space-y-3">
+            <div className="seg grid-cols-2">
+              {(["circular", "lineal"] as Shape[]).map((s) => (
+                <button key={s} data-on={shape === s} onClick={() => setShape(s)}>
+                  {s === "circular" ? "Circular" : "Lineal (A → B)"}
+                </button>
+              ))}
+            </div>
+
+            <PlaceInput
+              label="Salida"
+              placeholder="Villalón de Campos, Medina de Rioseco…"
+              value={start}
+              text={startText}
+              onChange={(t, p) => {
+                setStartText(t);
+                if (p) setStart(p);
+                else if (!t) setStart(null);
+              }}
+              onPickOnMap={() => setPicking(picking === "start" ? null : "start")}
+              picking={picking === "start"}
+            />
+            <button
+              type="button"
+              onClick={useMyLocation}
+              className="-mt-1 text-[0.68rem] font-semibold text-[var(--color-faint)] transition-colors hover:text-[var(--color-accent)]"
+            >
+              usar mi ubicación
+            </button>
+
+            {shape === "lineal" && (
+              <div className="rise">
+                <PlaceInput
+                  label="Llegada"
+                  placeholder="¿A dónde vas?"
+                  value={end}
+                  text={endText}
+                  onChange={(t, p) => {
+                    setEndText(t);
+                    if (p) setEnd(p);
+                    else if (!t) setEnd(null);
+                  }}
+                  onPickOnMap={() => setPicking(picking === "end" ? null : "end")}
+                  picking={picking === "end"}
+                  accent="#4cc9f0"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* --- distancia --- */}
+          {shape === "circular" && (
+            <div>
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="label">Distancia</span>
+                <span className="num text-sm font-bold text-[var(--color-accent)]">
+                  {distanceKm} km
+                </span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={220}
+                step={5}
+                value={distanceKm}
+                onChange={(e) => setDistanceKm(Number(e.target.value))}
+              />
+              <div className="mt-1.5 flex gap-1.5">
+                {[40, 60, 80, 100, 130].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDistanceKm(d)}
+                    className="num flex-1 rounded-lg border border-white/8 py-1 text-[0.7rem] text-[var(--color-muted)] transition-colors hover:border-white/20 hover:text-[var(--color-ink)]"
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* --- firme --- */}
+          <div>
+            <div className="label mb-1.5">Por dónde</div>
+            <div className="seg grid-cols-3">
+              {SURFACES.map((s) => (
+                <button
+                  key={s.id}
+                  data-on={surface === s.id}
+                  onClick={() => setSurface(s.id)}
+                  title={s.hint}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* --- estrategia de viento --- */}
+          <div>
+            <div className="label mb-1.5">Qué prefieres</div>
+            <div className="seg">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  data-on={windMode === m.id}
+                  onClick={() => setWindMode(m.id)}
+                  className="flex flex-col items-start gap-0.5 !px-2.5 !py-2 text-left"
+                >
+                  <span className="text-[0.82rem]">{m.label}</span>
+                  <span className="text-[0.66rem] font-normal opacity-70">{m.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* --- cuándo --- */}
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div>
+              <div className="label mb-1.5">Salida</div>
+              <input
+                type="datetime-local"
+                className="field num"
+                value={departure}
+                onChange={(e) => setDeparture(e.target.value)}
+              />
+            </div>
+            <div>
+              <div className="label mb-1.5">Margen</div>
+              <select
+                className="field num"
+                value={flexHours}
+                onChange={(e) => setFlexHours(Number(e.target.value))}
+              >
+                {[0, 1, 2, 3, 4, 6, 8, 12].map((h) => (
+                  <option key={h} value={h}>
+                    ±{h} h
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* --- ajustes finos --- */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="label flex w-full items-center justify-between hover:text-[var(--color-muted)]"
+            >
+              <span>Tu bici y tú</span>
+              <span className="text-[var(--color-faint)]">{showAdvanced ? "−" : "+"}</span>
+            </button>
+            {showAdvanced && (
+              <div className="rise mt-2 space-y-3">
+                <div className="seg grid-cols-4">
+                  {(Object.keys(PRESETS) as PresetKey[]).map((k) => (
+                    <button
+                      key={k}
+                      data-on={preset === k}
+                      onClick={() => {
+                        setPreset(k);
+                        setPowerW(PRESETS[k].powerW);
+                      }}
+                    >
+                      {PRESETS[k].label}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <div className="mb-1.5 flex items-baseline justify-between">
+                    <span className="label">Potencia sostenida</span>
+                    <span className="num text-sm font-bold text-[var(--color-accent)]">
+                      {powerW} W
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={80}
+                    max={320}
+                    step={5}
+                    value={powerW}
+                    onChange={(e) => setPowerW(Number(e.target.value))}
+                  />
+                  <p className="mt-1 text-[0.66rem] leading-snug text-[var(--color-faint)]">
+                    Es lo que puedes mantener toda la ruta. Ajusta la potencia y verás cómo
+                    cambian los tiempos, no la forma de la ruta.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            className="btn btn-primary w-full !py-2.5 !text-[0.9rem]"
+            disabled={!canPlan || busy}
+            onClick={() => run()}
+          >
+            {busy ? (
+              <>
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black/70" />
+                Buscando por dónde…
+              </>
+            ) : (
+              "Trazar ruta"
+            )}
+          </button>
+
+          {error && (
+            <p className="rise rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-[0.78rem] leading-snug text-red-200">
+              {error}
+            </p>
+          )}
+
+          {result && shown && (
+            <Results
+              result={result}
+              shown={shown}
+              candidates={candidates}
+              onChoose={setChosenId}
+              onHover={setHoverKm}
+              onPickHour={(iso) => run(Date.parse(iso))}
+              busy={busy}
+              shareUrl={shareUrl}
+            />
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Toggle({
+  on,
+  onChange,
+  label,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!on)}
+      className="flex items-center gap-1.5 text-left text-[var(--color-muted)] transition-colors hover:text-[var(--color-ink)]"
+    >
+      <span
+        className="h-3 w-5 rounded-full p-[2px] transition-colors"
+        style={{ background: on ? "var(--color-accent)" : "rgba(255,255,255,.14)" }}
+      >
+        <span
+          className="block h-2 w-2 rounded-full bg-white transition-transform"
+          style={{ transform: on ? "translateX(8px)" : "none" }}
+        />
+      </span>
+      {label}
+    </button>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "good" | "bad";
+}) {
+  const color =
+    tone === "good" ? "#56d364" : tone === "bad" ? "#ff8080" : "var(--color-ink)";
+  return (
+    <div className="card px-2.5 py-2">
+      <div className="label text-[0.6rem]">{label}</div>
+      <div className="num mt-0.5 text-[1.05rem] font-bold leading-none" style={{ color }}>
+        {value}
+      </div>
+      {sub && (
+        <div className="mt-1 text-[0.64rem] leading-tight text-[var(--color-faint)]">{sub}</div>
+      )}
+    </div>
+  );
+}
+
+function verdict(c: Candidate, windFromDeg: number): string {
+  const out = c.evaluation.outboundTailwind;
+  const home = c.evaluation.homeTailwind;
+  const dir = `del ${cardinal(windFromDeg)}`;
+  const salida =
+    out < -1 ? "sales con el aire de cara" : out > 1 ? "sales empujado" : "sales con el aire de lado";
+  const vuelta =
+    home > 1.2
+      ? "y vuelves con él a favor"
+      : home < -1.2
+        ? "y la vuelta también es de cara"
+        : "y vuelves con el aire cruzado";
+  return `Viento ${dir}: ${salida} ${vuelta}.`;
+}
+
+function Results({
+  result,
+  shown,
+  candidates,
+  onChoose,
+  onHover,
+  onPickHour,
+  busy,
+  shareUrl,
+}: {
+  result: PlanResponse;
+  shown: Candidate;
+  candidates: Candidate[];
+  onChoose: (id: string) => void;
+  onHover: (km: number | null) => void;
+  onPickHour: (iso: string) => void;
+  busy: boolean;
+  shareUrl: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const ev = shown.evaluation;
+  const w = result.wind.atStart;
+  const bf = beaufort(w.speed10);
+  const km = shown.geometry.distanceM / 1000;
+
+  return (
+    <div className="rise space-y-3.5 border-t border-white/8 pt-4">
+      <div className="flex items-start gap-3">
+        <WindRose
+          fromDeg={w.fromDeg}
+          speed={w.speed10}
+          headingDeg={shown.headingDeg}
+          size={116}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-[0.68rem] uppercase tracking-wider text-[var(--color-faint)]">
+            {fmtDay(shown.departure)} · {fmtHour(shown.departure)}
+          </div>
+          <div className="mt-0.5 text-[0.82rem] font-semibold leading-snug">
+            Viento del {cardinal(w.fromDeg)} · {(w.speed10 * 3.6).toFixed(0)} km/h
+          </div>
+          <div className="text-[0.7rem] text-[var(--color-faint)]">
+            rachas {(w.gust * 3.6).toFixed(0)} km/h · {bf.name} (fuerza {bf.n})
+          </div>
+          <p className="mt-2 text-[0.76rem] leading-snug text-[var(--color-muted)]">
+            {verdict(shown, w.fromDeg)}
+          </p>
+        </div>
+      </div>
+
+      {(result.wind.worst.gust * 3.6 > 55 || result.wind.worst.precipProb > 40) && (
+        <p className="rounded-xl border border-amber-400/25 bg-amber-400/8 px-3 py-2 text-[0.74rem] leading-snug text-amber-200/90">
+          {result.wind.worst.gust * 3.6 > 55 &&
+            `Rachas de hasta ${(result.wind.worst.gust * 3.6).toFixed(0)} km/h durante la ruta. `}
+          {result.wind.worst.precipProb > 40 &&
+            `Hasta un ${Math.round(result.wind.worst.precipProb)}% de probabilidad de lluvia por el camino.`}
+        </p>
+      )}
+
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Distancia" value={`${km.toFixed(1)} km`}
+          sub={shown.geometry.ascentM != null ? `+${Math.round(shown.geometry.ascentM)} m` : undefined} />
+        <Stat label="Tiempo" value={fmtDuration(ev.timeS)} sub={`${ev.avgKmh.toFixed(1)} km/h`} />
+        <Stat
+          label="Peaje del aire"
+          value={fmtDelta(ev.windCostS)}
+          sub="frente a calma"
+          tone={ev.windCostS > 0 ? "bad" : "good"}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="A favor" value={`${Math.round(ev.tailwindFrac * 100)}%`} tone="good" />
+        <Stat label="De cara" value={`${Math.round(ev.headwindFrac * 100)}%`} tone="bad" />
+        <Stat
+          label="Últimos km"
+          value={`${(ev.homeTailwind * 3.6).toFixed(0)}`}
+          sub={ev.homeTailwind >= 0 ? "km/h a favor" : "km/h en contra"}
+          tone={ev.homeTailwind >= 0 ? "good" : "bad"}
+        />
+      </div>
+
+      {shown.geometry.pavedFrac != null && (
+        <div className="card px-3 py-2">
+          <div className="flex items-baseline justify-between">
+            <span className="label">Firme</span>
+            <span className="num text-[0.75rem] text-[var(--color-muted)]">
+              {Math.round(shown.geometry.pavedFrac * 100)}% asfalto
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-[#4cc9f0] to-[#a78bfa]"
+              style={{ width: `${Math.round(shown.geometry.pavedFrac * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <RouteProfile track={shown.track} onHover={onHover} />
+
+      <HourStrip
+        hours={result.hours}
+        selected={shown.departure}
+        onSelect={onPickHour}
+        busy={busy}
+      />
+
+      {candidates.length > 1 && (
+        <div>
+          <div className="label mb-1.5">Otras opciones</div>
+          <div className="space-y-1.5">
+            {candidates.map((c) => {
+              const on = c.id === shown.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => onChoose(c.id)}
+                  className="flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-all"
+                  style={{
+                    borderColor: on ? "rgba(255,138,61,.45)" : "var(--color-line)",
+                    background: on ? "rgba(255,138,61,.1)" : "rgba(255,255,255,.02)",
+                  }}
+                >
+                  {c.headingDeg != null && (
+                    <span
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/10 text-[0.6rem] font-bold"
+                      style={{ color: on ? "var(--color-accent)" : "var(--color-muted)" }}
+                    >
+                      {cardinal(c.headingDeg)}
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[0.78rem] font-medium">
+                      {c.label}
+                    </span>
+                    <span className="num block text-[0.66rem] text-[var(--color-faint)]">
+                      {(c.geometry.distanceM / 1000).toFixed(1)} km ·{" "}
+                      {fmtDuration(c.evaluation.timeS)} · vuelta{" "}
+                      {(c.evaluation.homeTailwind * 3.6).toFixed(0)} km/h{" "}
+                      {c.evaluation.homeTailwind >= 0 ? "a favor" : "en contra"}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          className="btn flex-1"
+          onClick={() =>
+            downloadGPX(
+              shown,
+              `viento-${km.toFixed(0)}km-${fmtHour(shown.departure).replace(":", "")}`
+            )
+          }
+        >
+          Descargar GPX
+        </button>
+        <button
+          className="btn flex-1"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(shareUrl);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1800);
+            } catch {
+              /* sin portapapeles */
+            }
+          }}
+        >
+          {copied ? "¡Copiado!" : "Copiar enlace"}
+        </button>
+      </div>
+
+      <details className="text-[0.68rem] text-[var(--color-faint)]">
+        <summary className="cursor-pointer select-none hover:text-[var(--color-muted)]">
+          Cómo se ha calculado
+        </summary>
+        <div className="mt-2 space-y-1.5 leading-relaxed">
+          <p>
+            Se han trazado {result.meta.routingCalls} rutas candidatas con{" "}
+            {result.meta.profile} y se ha simulado cada una tramo a tramo,
+            consultando la previsión en el instante en el que pasarías por cada
+            punto (no la de la salida).
+          </p>
+          <p>
+            El viento a 10 m se reduce a la altura del ciclista y se descompone en
+            componente frontal y lateral; la velocidad sale de resolver el balance
+            de potencia ({result.meta.rider.powerW} W, CdA {result.meta.rider.cda},
+            Crr {result.meta.rider.crr}, {result.meta.rider.massKg} kg).
+          </p>
+          {result.meta.warnings.map((w, i) => (
+            <p key={i} className="text-amber-300/70">
+              {w}
+            </p>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}

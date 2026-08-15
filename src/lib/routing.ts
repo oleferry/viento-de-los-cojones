@@ -1,0 +1,234 @@
+import type { LonLat, RouteGeometry, Surface } from "./types";
+import { polylineLength } from "./geo";
+
+export type Provider = "ors" | "osrm";
+
+const ORS_BASE = "https://api.openrouteservice.org";
+const OSRM_BASE = "https://routing.openstreetmap.de";
+const UA = "viento-de-los-cojones/0.1 (planificador de rutas ciclistas)";
+
+/** Codigos de firme de ORS que consideramos pavimento rodable con bici de carretera. */
+const ORS_PAVED = new Set([1, 3, 4, 5, 6, 7, 14]);
+const ORS_SURFACE_NAMES: Record<number, string> = {
+  0: "desconocido",
+  1: "pavimentado",
+  2: "sin pavimentar",
+  3: "asfalto",
+  4: "hormigon",
+  5: "adoquin",
+  6: "metal",
+  7: "madera",
+  8: "zahorra compactada",
+  9: "grava fina",
+  10: "grava",
+  11: "tierra",
+  12: "terreno natural",
+  13: "hielo",
+  14: "adoquinado",
+  15: "arena",
+  16: "astillas",
+  17: "hierba",
+  18: "hierba con losa",
+};
+
+export function pickProvider(): Provider {
+  const forced = process.env.ROUTING_PROVIDER?.toLowerCase();
+  if (forced === "ors" || forced === "osrm") return forced;
+  return process.env.ORS_API_KEY ? "ors" : "osrm";
+}
+
+export function orsProfile(surface: Surface): string {
+  switch (surface) {
+    case "carretera":
+      return "cycling-road";
+    case "camino":
+      return "cycling-mountain";
+    default:
+      return "cycling-regular";
+  }
+}
+
+export function profileLabel(provider: Provider, surface: Surface): string {
+  if (provider === "ors") return orsProfile(surface);
+  return "osrm/routed-bike";
+}
+
+/** Limitador de concurrencia minimo, para no reventar el rate limit del proveedor. */
+export function pLimit(n: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  const next = () => {
+    active--;
+    queue.shift()?.();
+  };
+  return async function run<T>(fn: () => Promise<T>): Promise<T> {
+    if (active >= n) await new Promise<void>((r) => queue.push(r));
+    active++;
+    try {
+      return await fn();
+    } finally {
+      next();
+    }
+  };
+}
+
+export class RoutingError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = "RoutingError";
+  }
+}
+
+async function routeORS(
+  waypoints: LonLat[],
+  surface: Surface,
+  signal?: AbortSignal
+): Promise<RouteGeometry> {
+  const key = process.env.ORS_API_KEY;
+  if (!key) throw new RoutingError("Falta ORS_API_KEY");
+  const profile = orsProfile(surface);
+  const res = await fetch(`${ORS_BASE}/v2/directions/${profile}/geojson`, {
+    method: "POST",
+    signal,
+    cache: "no-store",
+    headers: {
+      Authorization: key,
+      "Content-Type": "application/json",
+      Accept: "application/geo+json",
+      "User-Agent": UA,
+    },
+    body: JSON.stringify({
+      coordinates: waypoints,
+      elevation: true,
+      instructions: false,
+      extra_info: ["surface", "waytype", "steepness"],
+      continue_straight: false,
+      radiuses: waypoints.map(() => 5000),
+      options: { avoid_features: ["ferries"] },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new RoutingError(`ORS ${res.status}: ${body.slice(0, 400)}`, res.status);
+  }
+  const data = await res.json();
+  const feat = data?.features?.[0];
+  if (!feat?.geometry?.coordinates?.length) {
+    throw new RoutingError("ORS no devolvio geometria");
+  }
+  const coords: number[][] = feat.geometry.coordinates;
+  const props = feat.properties ?? {};
+  const distanceM = props.summary?.distance ?? polylineLength(coords);
+
+  let surfaceBreakdown: Record<string, number> | undefined;
+  let pavedFrac: number | undefined;
+  const summary = props.extras?.surface?.summary;
+  if (Array.isArray(summary) && summary.length) {
+    surfaceBreakdown = {};
+    let paved = 0;
+    let total = 0;
+    for (const row of summary) {
+      const name = ORS_SURFACE_NAMES[row.value] ?? `codigo ${row.value}`;
+      surfaceBreakdown[name] = (surfaceBreakdown[name] ?? 0) + (row.distance ?? 0);
+      total += row.distance ?? 0;
+      if (ORS_PAVED.has(row.value)) paved += row.distance ?? 0;
+    }
+    pavedFrac = total > 0 ? paved / total : undefined;
+  }
+
+  return {
+    coords,
+    distanceM,
+    ascentM: props.ascent,
+    surfaceBreakdown,
+    pavedFrac,
+  };
+}
+
+async function routeOSRM(
+  waypoints: LonLat[],
+  signal?: AbortSignal
+): Promise<RouteGeometry> {
+  const path = waypoints.map((p) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`).join(";");
+  const url =
+    `${OSRM_BASE}/routed-bike/route/v1/driving/${path}` +
+    `?overview=full&geometries=geojson&continue_straight=false&alternatives=false&steps=false`;
+  const res = await fetch(url, {
+    signal,
+    cache: "no-store",
+    headers: { "User-Agent": UA, Accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new RoutingError(`OSRM ${res.status}: ${(await res.text()).slice(0, 300)}`, res.status);
+  }
+  const data = await res.json();
+  const route = data?.routes?.[0];
+  if (!route?.geometry?.coordinates?.length) {
+    throw new RoutingError(`OSRM sin ruta (${data?.code ?? "sin codigo"})`);
+  }
+  return {
+    coords: route.geometry.coordinates,
+    distanceM: route.distance ?? polylineLength(route.geometry.coordinates),
+  };
+}
+
+/** Enruta una lista de waypoints con el proveedor activo. */
+export async function route(
+  waypoints: LonLat[],
+  surface: Surface,
+  provider: Provider,
+  signal?: AbortSignal
+): Promise<RouteGeometry> {
+  if (waypoints.length < 2) throw new RoutingError("Hacen falta al menos 2 puntos");
+  return provider === "ors"
+    ? routeORS(waypoints, surface, signal)
+    : routeOSRM(waypoints, signal);
+}
+
+export interface GeocodeHit {
+  label: string;
+  lon: number;
+  lat: number;
+  region?: string;
+}
+
+/** Busqueda de lugares. Usa Pelias (ORS) si hay clave; si no, Nominatim. */
+export async function geocode(text: string, signal?: AbortSignal): Promise<GeocodeHit[]> {
+  const key = process.env.ORS_API_KEY;
+  if (key) {
+    const url = new URL(`${ORS_BASE}/geocode/search`);
+    url.searchParams.set("api_key", key);
+    url.searchParams.set("text", text);
+    url.searchParams.set("boundary.country", "ES");
+    url.searchParams.set("size", "8");
+    const res = await fetch(url.toString(), { signal, headers: { "User-Agent": UA } });
+    if (res.ok) {
+      const data = await res.json();
+      const hits: GeocodeHit[] = (data?.features ?? []).map((f: any) => ({
+        label: f.properties?.label ?? f.properties?.name ?? text,
+        lon: f.geometry.coordinates[0],
+        lat: f.geometry.coordinates[1],
+        region: f.properties?.region,
+      }));
+      if (hits.length) return hits;
+    }
+  }
+
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", text);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("countrycodes", "es");
+  url.searchParams.set("limit", "8");
+  const res = await fetch(url.toString(), {
+    signal,
+    headers: { "User-Agent": UA, Accept: "application/json" },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (Array.isArray(data) ? data : []).map((d: any) => ({
+    label: d.display_name as string,
+    lon: Number(d.lon),
+    lat: Number(d.lat),
+  }));
+}
