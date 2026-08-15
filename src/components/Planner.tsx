@@ -274,20 +274,21 @@ export default function Planner() {
         showAlternatives={showAlts}
         hoverKm={hoverKm}
         theme={mapTheme}
+        windGrid={result?.wind.grid}
       />
 
-      {/* leyenda flotante */}
-      <div className="glass pointer-events-auto absolute bottom-6 right-3 z-20 hidden rounded-xl px-3 py-2 md:block">
+      {/* leyenda flotante — en movil arriba, que abajo esta el panel */}
+      <div className="glass pointer-events-auto absolute right-2 top-2 z-20 rounded-xl px-2.5 py-2 md:bottom-6 md:right-3 md:top-auto md:px-3">
         <div className="label mb-1.5">Viento en ruta</div>
         <div className="flex items-center gap-2">
-          <span className="h-1.5 w-24 rounded-full bg-gradient-to-r from-[#34d399] via-[#facc15] to-[#ef4444]" />
+          <span className="h-1.5 w-20 rounded-full bg-gradient-to-r from-[#34d399] via-[#facc15] to-[#ef4444] md:w-24" />
         </div>
         <div className="mt-1 flex justify-between text-[0.62rem] text-[var(--color-faint)]">
           <span>a favor</span>
           <span>de cara</span>
         </div>
         <div className="mt-2 flex flex-col gap-1 text-[0.68rem]">
-          <Toggle on={showArrows} onChange={setShowArrows} label="Flechas de viento" />
+          <Toggle on={showArrows} onChange={setShowArrows} label="Viento" />
           <Toggle on={showAlts} onChange={setShowAlts} label="Alternativas" />
         </div>
         <div className="seg mt-2 grid-cols-2">

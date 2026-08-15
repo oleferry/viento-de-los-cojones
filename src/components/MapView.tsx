@@ -113,6 +113,21 @@ function windArrows(track: TrackPoint[]) {
   return { type: "FeatureCollection" as const, features };
 }
 
+/** Campo de viento de la comarca: una flecha por punto de la rejilla. */
+function windGrid(
+  grid: { lon: number; lat: number; dir: number; ms: number }[] | undefined
+) {
+  if (!grid?.length) return EMPTY;
+  return {
+    type: "FeatureCollection" as const,
+    features: grid.map((g) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [g.lon, g.lat] },
+      properties: { toward: (g.dir + 180) % 360, ms: g.ms },
+    })),
+  };
+}
+
 function lineOf(coords: number[][]) {
   return {
     type: "Feature" as const,
@@ -173,6 +188,8 @@ export interface MapViewProps {
   showAlternatives: boolean;
   hoverKm?: number | null;
   theme: MapTheme;
+  /** Rejilla de viento de la comarca, para pintar el campo de fondo. */
+  windGrid?: { lon: number; lat: number; dir: number; ms: number }[];
 }
 
 export default function MapView({
@@ -187,6 +204,7 @@ export default function MapView({
   showAlternatives,
   hoverKm,
   theme,
+  windGrid: grid,
 }: MapViewProps) {
   const holder = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
@@ -200,8 +218,12 @@ export default function MapView({
 
   // Los handlers de MapLibre viven fuera del ciclo de React, asi que leen el
   // estado por referencia para no quedarse con una version vieja.
-  const props = useRef({ best, alternatives, showArrows, showAlternatives, picking, onPick });
-  props.current = { best, alternatives, showArrows, showAlternatives, picking, onPick };
+  const props = useRef({
+    best, alternatives, showArrows, showAlternatives, picking, onPick, windGrid: grid,
+  });
+  props.current = {
+    best, alternatives, showArrows, showAlternatives, picking, onPick, windGrid: grid,
+  };
 
   /**
    * Instala fuentes y capas. Es idempotente y se vuelve a llamar cada vez que
@@ -240,7 +262,7 @@ export default function MapView({
       });
     }
 
-    for (const id of ["alts", "route", "arrows", "cursor"]) {
+    for (const id of ["field", "alts", "route", "arrows", "cursor"]) {
       attempt(`fuente ${id}`, () => {
         if (!m.getSource(id)) m.addSource(id, { type: "geojson", data: EMPTY });
       });
@@ -248,6 +270,25 @@ export default function MapView({
 
     const layer = (spec: Parameters<MLMap["addLayer"]>[0]) =>
       attempt(`capa ${spec.id}`, () => m.addLayer(spec));
+
+    // El campo de viento va DEBAJO de todo: es el fondo sobre el que se lee la
+    // ruta, no debe competir con ella.
+    if (hasArrow) {
+      layer({
+        id: "wind-field",
+        type: "symbol",
+        source: "field",
+        layout: {
+          "icon-image": "wind-arrow",
+          "icon-rotate": ["get", "toward"],
+          "icon-rotation-alignment": "map",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-size": ["interpolate", ["linear"], ["get", "ms"], 0, 0.4, 5, 0.6, 12, 0.95],
+        },
+        paint: { "icon-opacity": theme === "light" ? 0.3 : 0.34 },
+      });
+    }
 
     layer({
       id: "alts-line",
@@ -360,6 +401,8 @@ export default function MapView({
       if (!route) return false;
       const arrowSrc = m.getSource("arrows") as GeoJSONSource | undefined;
       const altSrc = m.getSource("alts") as GeoJSONSource | undefined;
+      const fieldSrc = m.getSource("field") as GeoJSONSource | undefined;
+      fieldSrc?.setData(arrows ? windGrid(props.current.windGrid) : EMPTY);
 
       const data = b ? trackToSegments(b.track) : EMPTY;
       route.setData(data);
@@ -521,7 +564,7 @@ export default function MapView({
     const m = map.current;
     if (m) sync(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [best, alternatives, showArrows, showAlternatives]);
+  }, [best, alternatives, showArrows, showAlternatives, grid]);
 
   // --- marcadores --------------------------------------------------------
   useEffect(() => {

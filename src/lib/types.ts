@@ -200,6 +200,12 @@ export interface PlanResponse {
     atStart: WindSample;
     /** Lo peor que te vas a encontrar a lo largo de la ruta elegida. */
     worst: { gust: number; precipProb: number; speed10: number };
+    /**
+     * Rejilla de viento sobre toda la zona de la ruta, a la hora de salida.
+     * Sirve para pintar el campo de viento en el mapa y ver de un vistazo como
+     * sopla en la comarca, no solo en los metros por los que pasas.
+     */
+    grid: { lon: number; lat: number; dir: number; ms: number }[];
     /** Serie horaria en el punto de salida. */
     series: { time: string; speed10: number; fromDeg: number; gust: number }[];
   };

@@ -673,6 +673,28 @@ export async function plan(
     if (s.speed10 > worst.speed10) worst.speed10 = s.speed10;
   }
 
+  // Rejilla de viento sobre la caja de la ruta, con un margen para que las
+  // flechas lleguen hasta los bordes del mapa. Sale gratis: el campo ya esta
+  // descargado y se interpola.
+  const [minLon, minLat, maxLon, maxLat] = bbox(bestCandidate.geometry.coords);
+  const padLon = Math.max(0.02, (maxLon - minLon) * 0.18);
+  const padLat = Math.max(0.02, (maxLat - minLat) * 0.18);
+  const N = 7;
+  const grid: PlanResponse["wind"]["grid"] = [];
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      const lon = minLon - padLon + ((maxLon - minLon + 2 * padLon) * i) / (N - 1);
+      const lat = minLat - padLat + ((maxLat - minLat + 2 * padLat) * j) / (N - 1);
+      const s = wind.sample(lon, lat, best.departureMs);
+      grid.push({
+        lon: round(lon, 4),
+        lat: round(lat, 4),
+        dir: round(s.fromDeg, 0),
+        ms: round(s.speed10, 2),
+      });
+    }
+  }
+
   return {
     best: bestCandidate,
     alternatives,
@@ -681,6 +703,7 @@ export async function plan(
     wind: {
       atStart: wind.sample(req.start[0], req.start[1], best.departureMs),
       worst,
+      grid,
       series: wind.seriesAt(req.start[0], req.start[1]),
     },
     meta: {
