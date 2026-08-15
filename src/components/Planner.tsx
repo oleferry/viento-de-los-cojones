@@ -511,7 +511,7 @@ export default function Planner() {
               href="https://open-meteo.com/"
               target="_blank"
               rel="noreferrer noopener"
-              className="mt-1 shrink-0 text-[0.62rem] text-[var(--color-faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--color-muted)]"
+              className="-mr-2 inline-flex min-h-11 shrink-0 items-center px-2 text-[0.66rem] text-[var(--color-faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--color-muted)] md:mr-0 md:min-h-0 md:px-0"
             >
               datos
             </a>

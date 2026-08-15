@@ -92,7 +92,7 @@ export default function PWA() {
       <button
         onClick={cerrar}
         aria-label="No, gracias"
-        className="shrink-0 px-1 text-[1.1rem] leading-none text-[var(--color-faint)] hover:text-[var(--color-ink)]"
+        className="grid h-11 w-9 shrink-0 place-items-center text-[1.2rem] leading-none text-[var(--color-faint)] hover:text-[var(--color-ink)]"
       >
         ×
       </button>
