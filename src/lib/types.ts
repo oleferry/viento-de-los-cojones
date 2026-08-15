@@ -155,6 +155,8 @@ export interface RouteGeometry {
   /** Reparto de firme en metros por categoria, si el proveedor lo aporta. */
   surfaceBreakdown?: Record<string, number>;
   pavedFrac?: number;
+  /** Fraccion de la ruta que se pisa dos veces (ida y vuelta por lo mismo). */
+  overlapFrac?: number;
 }
 
 export interface Candidate {

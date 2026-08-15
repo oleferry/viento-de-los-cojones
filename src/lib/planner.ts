@@ -14,6 +14,7 @@ import {
   bbox,
   destination,
   haversine,
+  overlapFraction,
   polygonLoop,
   resample,
   samplingGrid,
@@ -42,6 +43,15 @@ const SEGMENT_STEP_M = 400;
  */
 const OUTLOOK_DAYS = 5;
 
+/**
+ * Tope de ruta repetida que se tolera. Por encima de esto la ruta deja de ser
+ * un recorrido y se convierte en un ir y volver por el mismo sitio, que es
+ * justo lo que nadie quiere.
+ */
+const MAX_OVERLAP = 0.12;
+/** Distancia maxima que admite el generador de bucles de ORS. */
+const ROUND_TRIP_MAX_M = 100_000;
+
 interface Shaped {
   id: string;
   /**
@@ -55,6 +65,8 @@ interface Shaped {
   segmentsFwd: Segment[];
   segmentsRev: Segment[];
   label: string;
+  /** Fraccion de la ruta que se pisa dos veces. */
+  overlap: number;
 }
 
 interface Scored {
@@ -125,6 +137,15 @@ export async function plan(
     signal
   );
 
+  /**
+   * Con bici de carretera el asfalto no es una preferencia, es un requisito:
+   * una cubierta de 25 en un camino de tierra es un pinchazo y una vuelta
+   * andando. Al reves no aplica igual, porque una gravel rueda perfectamente
+   * por asfalto, asi que "camino" es preferencia y "carretera" es obligacion.
+   */
+  const avoidUnpaved = req.surface === "carretera";
+  const MIN_PAVED = 0.97;
+
   // --- 2. Candidatos geometricos -----------------------------------------
   const limit = pLimit(chain[0] === "ors" ? 5 : 3);
   let routingCalls = 0;
@@ -146,13 +167,34 @@ export async function plan(
       geometry,
       segmentsFwd: toSegments(fwd),
       segmentsRev: toSegments(reverseCoords(fwd)),
+      overlap: overlapFraction(geometry.coords),
     };
+  };
+
+  /** Rumbo con el que arranca de verdad la ruta ya trazada. */
+  const initialHeading = (coords: number[][]): number | undefined => {
+    if (coords.length < 2) return undefined;
+    // A 1,5 km del inicio: el primer punto suele ser una calle del pueblo y no
+    // dice nada de hacia donde va la ruta.
+    let acc = 0;
+    for (let i = 1; i < coords.length; i++) {
+      acc += haversine(
+        [coords[i - 1][0], coords[i - 1][1]],
+        [coords[i][0], coords[i][1]]
+      );
+      if (acc >= 1500) {
+        return Math.round(
+          bearingOf([coords[0][0], coords[0][1]], [coords[i][0], coords[i][1]])
+        );
+      }
+    }
+    return undefined;
   };
 
   if (req.shape === "lineal") {
     if (!req.end) throw new Error("Una ruta lineal necesita punto de llegada");
     routingCalls++;
-    const geom = await limit(() => route([req.start, req.end!], req.surface, chain, signal));
+    const geom = await limit(() => route([req.start, req.end!], req.surface, chain, signal, { avoidUnpaved }));
     usedProvider = geom.provider;
     if (geom.fallbacks?.length) warnings.push(...geom.fallbacks);
     shapes.push(buildShape("directa", "Ruta directa", geom));
@@ -173,7 +215,7 @@ export async function plan(
     const results = await Promise.allSettled(
       variants.map((v) => {
         routingCalls++;
-        return limit(() => route([req.start, v.via, req.end!], req.surface, chain, signal));
+        return limit(() => route([req.start, v.via, req.end!], req.surface, chain, signal, { avoidUnpaved }));
       })
     );
     results.forEach((r, i) => {
@@ -203,11 +245,44 @@ export async function plan(
       7
     );
 
-    const settled = await Promise.allSettled(
-      headings.map((h) => {
-        routingCalls++;
+    type Job = { id: string; heading?: number; run: () => Promise<Awaited<ReturnType<typeof route>>> };
+    const jobs: Job[] = headings.map((h) => ({
+      id: `h${h}`,
+      heading: h,
+      run: () => {
         const wps = polygonLoop(req.start, h, targetM / DETOUR_FACTOR, n, true);
-        return limit(() => route(wps, req.surface, chain, signal));
+        return route(wps, req.surface, chain, signal, { avoidUnpaved });
+      },
+    }));
+
+    // Bucles generados por el propio router. Nuestro poligono controla el rumbo
+    // de salida, que es la palanca del viento, pero sus vertices caen donde
+    // caen y provocan idas y vueltas. ORS traza el bucle siguiendo la red de
+    // carreteras, asi que sale mucho mas limpio. Se usan los dos y que decida
+    // la puntuacion.
+    if (chain[0] === "ors" && targetM <= ROUND_TRIP_MAX_M) {
+      for (let s = 0; s < 6; s++) {
+        jobs.push({
+          id: `rt${s}`,
+          run: () =>
+            route(
+              [req.start],
+              req.surface,
+              ["ors"],
+              signal,
+              {
+                avoidUnpaved,
+                roundTrip: { lengthM: targetM, points: 4 + (s % 3), seed: s * 7 + 1 },
+              }
+            ),
+        });
+      }
+    }
+
+    const settled = await Promise.allSettled(
+      jobs.map((j) => {
+        routingCalls++;
+        return limit(j.run);
       })
     );
 
@@ -219,12 +294,16 @@ export async function plan(
       }
       const ratio = r.value.distanceM / targetM;
       if (ratio < 0.6 || ratio > 1.6) return; // el router se fue por los cerros
+      const job = jobs[i];
+      const heading = job.heading ?? initialHeading(r.value.coords);
       shapes.push(
         buildShape(
-          `h${headings[i]}`,
-          `Salida hacia ${cardinalOf(headings[i])} (${headings[i]}°)`,
+          job.id,
+          heading != null
+            ? `Salida hacia ${cardinalOf(heading)} (${heading}°)`
+            : "Bucle",
           r.value,
-          headings[i]
+          heading
         )
       );
     });
@@ -236,6 +315,29 @@ export async function plan(
           ? `No se pudo trazar ningun bucle: ${String(failures[0].reason).slice(0, 200)}`
           : "No se pudo trazar ningun bucle con esa distancia desde ese punto"
       );
+    }
+
+    // Fuera las que se pisan a si mismas, salvo que no quede nada mejor.
+    const limpias = shapes.filter((s) => s.overlap <= MAX_OVERLAP);
+    if (limpias.length >= 2) {
+      shapes.length = 0;
+      shapes.push(...limpias);
+    }
+
+    // Y fuera las que meten tierra cuando se ha pedido carretera.
+    if (avoidUnpaved) {
+      const asfaltadas = shapes.filter(
+        (s) => s.geometry.pavedFrac == null || s.geometry.pavedFrac >= MIN_PAVED
+      );
+      if (asfaltadas.length) {
+        shapes.length = 0;
+        shapes.push(...asfaltadas);
+      } else {
+        const mejor = Math.max(...shapes.map((s) => s.geometry.pavedFrac ?? 0));
+        warnings.push(
+          `No hay ningún bucle de esa distancia enteramente asfaltado desde ahí: el mejor lleva un ${Math.round(mejor * 100)}% de asfalto.`
+        );
+      }
     }
   }
 
@@ -335,6 +437,10 @@ export async function plan(
         const dev = Math.abs(s.shape.geometry.distanceM - targetM) / targetM;
         s.score += Math.max(0, dev - 0.08) * 1.2;
       }
+      // Y una dura por repetir camino: entre dos rutas parecidas, siempre la
+      // que no te hace desandar lo andado. El peso es alto a proposito, para
+      // que gane a una diferencia moderada de viento.
+      s.score += s.shape.overlap * 2.5;
     }
     list.sort((a, b) => a.score - b.score);
   };
@@ -479,9 +585,11 @@ export async function plan(
       label: s.reversed ? `${s.shape.label} (sentido inverso)` : s.shape.label,
       headingDeg: s.shape.headingDeg,
       reversed: s.reversed,
-      geometry: s.reversed
-        ? { ...s.shape.geometry, coords: reverseCoords(s.shape.geometry.coords) }
-        : s.shape.geometry,
+      geometry: {
+        ...s.shape.geometry,
+        overlapFrac: round(s.shape.overlap, 3),
+        ...(s.reversed ? { coords: reverseCoords(s.shape.geometry.coords) } : {}),
+      },
       departure: new Date(s.departureMs).toISOString(),
       evaluation,
       score: round(s.score, 4),

@@ -120,6 +120,43 @@ export function toSegments(coords: number[][]): Segment[] {
   return segs;
 }
 
+/**
+ * Fraccion de la ruta que se pisa dos veces, en cualquier sentido.
+ *
+ * Es la metrica que separa un recorrido de un ir-y-volver: a nadie le gusta
+ * salir a un cruce, dar la vuelta de 180 y desandar lo andado. Pasa cuando el
+ * vertice de un bucle cae en mitad del campo y el router tiene que ir a
+ * tocarlo y volver.
+ *
+ * Se resuelve troceando en celdas de `cellM` metros y contando la distancia
+ * cuyo tramo cae en una celda ya visitada. Comparar segmentos dos a dos seria
+ * O(n^2); esto es lineal y, con celdas del tamano de un tramo, igual de fiable.
+ */
+export function overlapFraction(coords: number[][], cellM = 120): number {
+  if (coords.length < 3) return 0;
+  const seen = new Set<string>();
+  let repeated = 0;
+  let total = 0;
+  // Grados por metro: la longitud se estrecha con el coseno de la latitud.
+  const latDeg = cellM / 111_320;
+  const lat0 = coords[0][1];
+  const lonDeg = cellM / (111_320 * Math.max(0.2, Math.cos(toRad(lat0))));
+
+  for (let i = 1; i < coords.length; i++) {
+    const a = coords[i - 1];
+    const b = coords[i];
+    const len = haversine([a[0], a[1]], [b[0], b[1]]);
+    if (len === 0) continue;
+    total += len;
+    const midLon = (a[0] + b[0]) / 2;
+    const midLat = (a[1] + b[1]) / 2;
+    const key = `${Math.round(midLon / lonDeg)},${Math.round(midLat / latDeg)}`;
+    if (seen.has(key)) repeated += len;
+    else seen.add(key);
+  }
+  return total > 0 ? repeated / total : 0;
+}
+
 /** Caja envolvente [minLon, minLat, maxLon, maxLat]. */
 export function bbox(coords: number[][]): [number, number, number, number] {
   let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;

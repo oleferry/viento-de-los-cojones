@@ -196,14 +196,54 @@ async function withRetry<T>(
   throw last;
 }
 
+export interface RouteOptions {
+  /**
+   * Pide a ORS que genere el bucle el mismo, en vez de darle vertices que
+   * inventamos nosotros. Los vertices inventados caen donde caen, y si uno
+   * queda en mitad del campo el router va a tocarlo y se vuelve por el mismo
+   * sitio: el famoso pico de ida y vuelta.
+   */
+  roundTrip?: { lengthM: number; points: number; seed: number };
+  /** Prohibir explicitamente el firme sin asfaltar. */
+  avoidUnpaved?: boolean;
+}
+
 async function routeORS(
   waypoints: LonLat[],
   surface: Surface,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  opts: RouteOptions = {}
 ): Promise<RouteGeometry> {
   const key = process.env.ORS_API_KEY;
   if (!key) throw new RoutingError("Falta ORS_API_KEY");
   const profile = orsProfile(surface);
+
+  const avoid = ["ferries"];
+  if (opts.avoidUnpaved) avoid.push("unpavedroads");
+
+  const body: Record<string, unknown> = {
+    coordinates: opts.roundTrip ? [waypoints[0]] : waypoints,
+    elevation: true,
+    instructions: false,
+    extra_info: ["surface", "waytype", "steepness"],
+    options: {
+      avoid_features: avoid,
+      ...(opts.roundTrip
+        ? {
+            round_trip: {
+              length: Math.round(opts.roundTrip.lengthM),
+              points: opts.roundTrip.points,
+              seed: opts.roundTrip.seed,
+            },
+          }
+        : {}),
+    },
+  };
+  if (!opts.roundTrip) {
+    body.continue_straight = false;
+    body.radiuses = waypoints.map(() => 5000);
+  }
+
   const res = await fetchLimited(`${ORS_BASE}/v2/directions/${profile}/geojson`, {
     method: "POST",
     cache: "no-store",
@@ -213,15 +253,7 @@ async function routeORS(
       Accept: "application/geo+json",
       "User-Agent": UA,
     },
-    body: JSON.stringify({
-      coordinates: waypoints,
-      elevation: true,
-      instructions: false,
-      extra_info: ["surface", "waytype", "steepness"],
-      continue_straight: false,
-      radiuses: waypoints.map(() => 5000),
-      options: { avoid_features: ["ferries"] },
-    }),
+    body: JSON.stringify(body),
   }, signal);
 
   if (!res.ok) {
@@ -339,9 +371,15 @@ function routeWith(
   provider: Provider,
   waypoints: LonLat[],
   surface: Surface,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  opts: RouteOptions = {}
 ): Promise<RouteGeometry> {
-  if (provider === "ors") return routeORS(waypoints, surface, signal);
+  if (provider === "ors") return routeORS(waypoints, surface, signal, opts);
+  // Solo ORS sabe generar bucles el mismo; para los demas no tiene sentido
+  // intentarlo con otros waypoints, porque seria otra ruta distinta.
+  if (opts.roundTrip) {
+    throw new RoutingError(`${provider} no genera bucles`, 400);
+  }
   if (provider === "brouter") return routeBRouter(waypoints, surface, signal);
   return routeOSRM(waypoints, signal);
 }
@@ -361,14 +399,17 @@ export async function route(
   waypoints: LonLat[],
   surface: Surface,
   chain: Provider[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  opts: RouteOptions = {}
 ): Promise<RouteResult> {
-  if (waypoints.length < 2) throw new RoutingError("Hacen falta al menos 2 puntos");
+  if (!opts.roundTrip && waypoints.length < 2) {
+    throw new RoutingError("Hacen falta al menos 2 puntos");
+  }
   let last: unknown;
   const fallbacks: string[] = [];
   for (const provider of chain) {
     try {
-      const geom = await withRetry(() => routeWith(provider, waypoints, surface, signal));
+      const geom = await withRetry(() => routeWith(provider, waypoints, surface, signal, opts));
       return { ...geom, provider, fallbacks: fallbacks.length ? fallbacks : undefined };
     } catch (err) {
       last = err;
