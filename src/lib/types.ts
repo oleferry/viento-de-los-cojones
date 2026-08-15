@@ -38,8 +38,12 @@ export interface RiderProfile {
   crr: number;
   /** Rendimiento de la transmision (0-1). */
   drivetrain: number;
-  /** Densidad del aire (kg/m^3). */
+  /** Densidad del aire de reserva, si no se puede calcular de la prevision. */
   rho: number;
+  /** Multiplicador de CdA yendo a rueda (0,62 = ahorras el 38%). */
+  draftMultiplier?: number;
+  /** Fraccion del tiempo que vas resguardado (0-1). */
+  draftFraction?: number;
 }
 
 export interface WindSample {
@@ -51,6 +55,12 @@ export interface WindSample {
   gust: number;
   tempC: number;
   precipProb: number;
+  /** Densidad del aire calculada con presion, temperatura y humedad (kg/m^3). */
+  rho: number;
+  /** Presion en superficie (hPa). */
+  pressure: number;
+  /** Humedad relativa (%). */
+  humidity: number;
 }
 
 export interface Segment {
@@ -105,6 +115,8 @@ export interface RouteEvaluation {
   meanHeadwind: number;
   /** Velocidad media estimada (km/h). */
   avgKmh: number;
+  /** Densidad del aire media a lo largo de la ruta (kg/m^3). */
+  meanRho: number;
   /** Detalle por segmento. Se omite en la respuesta HTTP (va en `track`). */
   segments?: SegmentResult[];
 }

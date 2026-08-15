@@ -56,13 +56,44 @@ Nacido en Tierra de Campos, donde el aire es una variable de entrenamiento.
    el último 35% de la ruta. Las tres estrategias son pesos distintos sobre esos
    mismos números.
 
+## Perfil de ciclista
+
+El tiempo estimado sale de un perfil que puedes afinar hasta donde quieras. Se
+guarda en tu navegador.
+
+- **Antropometría.** Con altura y peso se calcula la superficie corporal de Du
+  Bois y de ahí el CdA del cuerpo, escalado por la postura (manos arriba,
+  manetas, manillar bajo, acoples).
+- **Material.** Cuadro, ruedas, neumáticos, ropa, casco y equipaje aportan cada
+  uno su parte al CdA y al Crr. El catálogo cubre lo que hay en el mercado
+  (Cervélo S5, Tarmac SL8, Madone, Aeroad, Propel, Foil, Dogma… y ruedas Zipp,
+  Enve, Roval, DT Swiss, Dura-Ace, Bora, Hunt, Vision) agrupado por familias.
+- **FTP y factor de intensidad.** La potencia objetivo es FTP × IF. Si pones un
+  IF que no se sostiene la duración que sale, te avisa.
+- **Rebufo.** Dices con cuántos vas y qué fracción del tiempo ruedas tapado
+  (relevando a partes iguales en un grupo de 4 sería el 75%). El ahorro se
+  aplica al CdA y **se degrada tramo a tramo según lo angulado que entre el
+  aire**: con viento de lado el grupo se abre en abanico y tapa la mitad.
+- **Densidad del aire real.** Se calcula con la presión, temperatura y humedad
+  previstas en cada punto. En la meseta a 800 m un mediodía de agosto el aire
+  pesa un 14% menos que el estándar a nivel del mar, y eso son minutos.
+
+Sobre los números del catálogo: los túneles publican sus resultados en unidades
+que no se pueden mezclar (gramos a 45 km/h, vatios a 40, CdA de la rueda sola en
+su propio utillaje), así que aquí no se copian tablas. Se construye un modelo
+coherente y se ancla cada familia en el rango que reportan esas pruebas. Las
+diferencias relativas entre grupos son fieles a la literatura; el valor absoluto
+de un modelo concreto es una estimación.
+
 ## Qué no hace
 
 - No tiene en cuenta la protección de setos, tapias o desmontes: el viento es el
   del modelo a campo abierto.
-- El aumento de resistencia por viento cruzado (yaw) no se modela; sólo se usa
-  la componente frontal.
+- El aumento de resistencia por viento cruzado (yaw) no se modela en el CdA;
+  sólo se usa la componente frontal. Sí se usa el ángulo aparente para degradar
+  el rebufo.
 - La previsión es previsión. A 3 días es orientativa; a 10, folclore.
+- El catálogo de material son familias, no medidas de cada referencia concreta.
 
 ---
 

@@ -1,5 +1,6 @@
 import type { LonLat, WindSample } from "./types";
 import { haversine, toDeg, toRad } from "./geo";
+import { airDensity } from "./physics";
 
 const OPEN_METEO = "https://api.open-meteo.com/v1/forecast";
 const HOURLY = [
@@ -8,6 +9,10 @@ const HOURLY = [
   "wind_gusts_10m",
   "temperature_2m",
   "precipitation_probability",
+  // Presion y humedad nos dan la densidad del aire real, que en la meseta a
+  // 800 m y en verano es bastante menor que la estandar y se nota en el arrastre.
+  "surface_pressure",
+  "relative_humidity_2m",
 ].join(",");
 
 interface StationSeries {
@@ -20,6 +25,8 @@ interface StationSeries {
   gust: number[];
   temp: number[];
   precip: number[];
+  pressure: number[];
+  humidity: number[];
 }
 
 export class WindField {
@@ -67,29 +74,38 @@ export class WindField {
   sample(lon: number, lat: number, epochMs: number): WindSample {
     const { i0, i1, f } = this.timeIndex(epochMs);
     let wsum = 0;
-    let u = 0, v = 0, gust = 0, temp = 0, precip = 0;
+    let u = 0, v = 0, gust = 0, temp = 0, precip = 0, press = 0, hum = 0;
+    const at = (a: number[]) => a[i0] + (a[i1] - a[i0]) * f;
 
     for (const s of this.stations) {
       const d = haversine([lon, lat], [s.lon, s.lat]);
       const w = 1 / (d * d + 1e4); // +100 m de suavizado para no dividir por cero
       wsum += w;
-      u += w * (s.u[i0] + (s.u[i1] - s.u[i0]) * f);
-      v += w * (s.v[i0] + (s.v[i1] - s.v[i0]) * f);
-      gust += w * (s.gust[i0] + (s.gust[i1] - s.gust[i0]) * f);
-      temp += w * (s.temp[i0] + (s.temp[i1] - s.temp[i0]) * f);
-      precip += w * (s.precip[i0] + (s.precip[i1] - s.precip[i0]) * f);
+      u += w * at(s.u);
+      v += w * at(s.v);
+      gust += w * at(s.gust);
+      temp += w * at(s.temp);
+      precip += w * at(s.precip);
+      press += w * at(s.pressure);
+      hum += w * at(s.humidity);
     }
     u /= wsum;
     v /= wsum;
 
     const speed = Math.hypot(u, v);
     const towardDeg = (toDeg(Math.atan2(u, v)) + 360) % 360;
+    const tempC = temp / wsum;
+    const pressure = press / wsum;
+    const humidity = hum / wsum;
     return {
       speed10: speed,
       fromDeg: (towardDeg + 180) % 360,
       gust: gust / wsum,
-      tempC: temp / wsum,
+      tempC,
       precipProb: precip / wsum,
+      pressure,
+      humidity,
+      rho: airDensity(pressure, tempC, humidity),
     };
   }
 
@@ -165,6 +181,10 @@ export async function fetchWindField(
       gust: (h.wind_gusts_10m ?? []).map(num),
       temp: (h.temperature_2m ?? []).map(num),
       precip: (h.precipitation_probability ?? []).map(num),
+      // Si el modelo no da presion, 1013 hPa deja la densidad en el valor
+      // estandar y el resultado no se descuadra.
+      pressure: times.map((_, i) => num(h.surface_pressure?.[i]) || 1013),
+      humidity: times.map((_, i) => num(h.relative_humidity_2m?.[i]) || 50),
     };
   });
 

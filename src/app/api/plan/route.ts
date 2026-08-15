@@ -10,6 +10,28 @@ const SHAPES: Shape[] = ["circular", "lineal"];
 const SURFACES: Surface[] = ["carretera", "camino", "mixto"];
 const MODES: WindMode[] = ["tailwind_home", "min_effort", "hard_first"];
 
+/** Rangos plausibles para el perfil del ciclista: fuera de esto se ignora. */
+const RIDER_BOUNDS: Record<string, [number, number]> = {
+  powerW: [40, 600],
+  massKg: [35, 200],
+  cda: [0.1, 1.2],
+  crr: [0.001, 0.03],
+  drivetrain: [0.85, 1],
+  rho: [0.6, 1.5],
+  draftMultiplier: [0.3, 1],
+  draftFraction: [0, 1],
+};
+
+function sanitizeRider(raw: unknown) {
+  if (typeof raw !== "object" || !raw) return undefined;
+  const out: Record<string, number> = {};
+  for (const [key, [lo, hi]] of Object.entries(RIDER_BOUNDS)) {
+    const v = Number((raw as Record<string, unknown>)[key]);
+    if (Number.isFinite(v) && v >= lo && v <= hi) out[key] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function isLonLat(v: unknown): v is [number, number] {
   return (
     Array.isArray(v) &&
@@ -59,7 +81,7 @@ export async function POST(request: Request) {
         ? Number(body.departureMs)
         : undefined,
     flexHours: Number.isFinite(body.flexHours) ? Number(body.flexHours) : 3,
-    rider: typeof body.rider === "object" && body.rider ? body.rider : undefined,
+    rider: sanitizeRider(body.rider),
   };
 
   const ac = new AbortController();

@@ -79,6 +79,36 @@ export class RoutingError extends Error {
   }
 }
 
+/** Codigos que merecen otro intento: el servidor esta saturado, no roto. */
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Reintenta con espera creciente. El OSRM publico de FOSSGIS devuelve 502 con
+ * facilidad cuando le llegan varias peticiones seguidas, y sin esto un unico
+ * hipo se lleva por delante todo el plan.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  attempts = 3,
+  baseMs = 600
+): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      const status = err instanceof RoutingError ? err.status : undefined;
+      const retryable = status == null || RETRYABLE.has(status);
+      if (!retryable || i === attempts - 1) break;
+      // Escalonado y con algo de dispersion, para no reintentar todos a la vez.
+      await sleep(baseMs * 2 ** i + Math.floor(Math.random() * 250));
+    }
+  }
+  throw last;
+}
+
 async function routeORS(
   waypoints: LonLat[],
   surface: Surface,
@@ -181,9 +211,11 @@ export async function route(
   signal?: AbortSignal
 ): Promise<RouteGeometry> {
   if (waypoints.length < 2) throw new RoutingError("Hacen falta al menos 2 puntos");
-  return provider === "ors"
-    ? routeORS(waypoints, surface, signal)
-    : routeOSRM(waypoints, signal);
+  return withRetry(() =>
+    provider === "ors"
+      ? routeORS(waypoints, surface, signal)
+      : routeOSRM(waypoints, signal)
+  );
 }
 
 export interface GeocodeHit {

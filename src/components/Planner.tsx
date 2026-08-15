@@ -6,7 +6,18 @@ import PlaceInput from "./PlaceInput";
 import WindRose from "./WindRose";
 import RouteProfile from "./RouteProfile";
 import HourStrip from "./HourStrip";
+import RiderSheet from "./RiderSheet";
 import { downloadGPX } from "@/lib/gpx";
+import {
+  DEFAULT_SETUP,
+  computeCdA,
+  computeCrr,
+  draftMultiplier,
+  intensitySanity,
+  targetPower,
+  totalMass,
+  type RiderSetup,
+} from "@/lib/equipment";
 import {
   beaufort,
   cardinal,
@@ -23,6 +34,8 @@ import type {
   Surface,
   WindMode,
 } from "@/lib/types";
+
+import type { MapTheme } from "./MapView";
 
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
@@ -41,13 +54,7 @@ const MODES: { id: WindMode; label: string; hint: string }[] = [
   { id: "min_effort", label: "Menos esfuerzo", hint: "minimiza el viento en toda la ruta" },
 ];
 
-const PRESETS = {
-  cicloturista: { label: "Cicloturista", powerW: 130, cda: 0.36, crr: 0.006, massKg: 85 },
-  carretera: { label: "Carretera", powerW: 180, cda: 0.3, crr: 0.004, massKg: 78 },
-  gravel: { label: "Gravel", powerW: 165, cda: 0.34, crr: 0.008, massKg: 85 },
-  mtb: { label: "MTB", powerW: 170, cda: 0.42, crr: 0.012, massKg: 88 },
-} as const;
-type PresetKey = keyof typeof PRESETS;
+const SETUP_KEY = "vdc.rider.v1";
 
 function localInputValue(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -64,8 +71,8 @@ export default function Planner() {
   const [distanceKm, setDistanceKm] = useState(60);
   const [surface, setSurface] = useState<Surface>("carretera");
   const [windMode, setWindMode] = useState<WindMode>("tailwind_home");
-  const [preset, setPreset] = useState<PresetKey>("carretera");
-  const [powerW, setPowerW] = useState<number>(PRESETS.carretera.powerW);
+  const [setup, setSetup] = useState<RiderSetup>(DEFAULT_SETUP);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [departure, setDeparture] = useState(() => {
     const d = new Date();
     d.setHours(d.getHours() + 1, 0, 0, 0);
@@ -81,9 +88,41 @@ export default function Planner() {
   const [hoverKm, setHoverKm] = useState<number | null>(null);
   const [showArrows, setShowArrows] = useState(true);
   const [showAlts, setShowAlts] = useState(true);
+  const [mapTheme, setMapTheme] = useState<MapTheme>("dark");
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const inflight = useRef<AbortController | null>(null);
+
+  // --- perfil persistido ---------------------------------------------------
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SETUP_KEY);
+      if (raw) setSetup({ ...DEFAULT_SETUP, ...JSON.parse(raw) });
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETUP_KEY, JSON.stringify(setup));
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, [setup]);
+
+  /** Lo que el motor necesita, derivado del perfil y del firme elegido. */
+  const riderPayload = useMemo(
+    () => ({
+      powerW: targetPower(setup),
+      massKg: totalMass(setup),
+      cda: computeCdA(setup).total,
+      crr: computeCrr(setup, surface),
+      drivetrain: 0.975,
+      draftMultiplier: draftMultiplier(setup.groupSize),
+      draftFraction: setup.groupSize > 1 ? setup.draftFraction : 0,
+    }),
+    [setup, surface]
+  );
 
   // --- estado en la URL, para poder compartir un plan --------------------
   useEffect(() => {
@@ -155,7 +194,7 @@ export default function Planner() {
             windMode,
             departureMs: overrideDepartureMs ?? new Date(departure).getTime(),
             flexHours: overrideDepartureMs != null ? 0 : flexHours,
-            rider: { ...PRESETS[preset], powerW },
+            rider: riderPayload,
           }),
         });
         const data = await res.json();
@@ -174,7 +213,7 @@ export default function Planner() {
         setBusy(false);
       }
     },
-    [start, end, shape, distanceKm, surface, windMode, departure, flexHours, preset, powerW]
+    [start, end, shape, distanceKm, surface, windMode, departure, flexHours, riderPayload]
   );
 
   const onPick = useCallback(
@@ -217,6 +256,7 @@ export default function Planner() {
         showArrows={showArrows}
         showAlternatives={showAlts}
         hoverKm={hoverKm}
+        theme={mapTheme}
       />
 
       {/* leyenda flotante */}
@@ -232,6 +272,14 @@ export default function Planner() {
         <div className="mt-2 flex flex-col gap-1 text-[0.68rem]">
           <Toggle on={showArrows} onChange={setShowArrows} label="Flechas de viento" />
           <Toggle on={showAlts} onChange={setShowAlts} label="Alternativas" />
+        </div>
+        <div className="seg mt-2 grid-cols-2">
+          <button data-on={mapTheme === "dark"} onClick={() => setMapTheme("dark")}>
+            Oscuro
+          </button>
+          <button data-on={mapTheme === "light"} onClick={() => setMapTheme("light")}>
+            Claro
+          </button>
         </div>
       </div>
 
@@ -420,55 +468,31 @@ export default function Planner() {
             </div>
           </div>
 
-          {/* --- ajustes finos --- */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowAdvanced((v) => !v)}
-              className="label flex w-full items-center justify-between hover:text-[var(--color-muted)]"
-            >
-              <span>Tu bici y tú</span>
-              <span className="text-[var(--color-faint)]">{showAdvanced ? "−" : "+"}</span>
-            </button>
-            {showAdvanced && (
-              <div className="rise mt-2 space-y-3">
-                <div className="seg grid-cols-4">
-                  {(Object.keys(PRESETS) as PresetKey[]).map((k) => (
-                    <button
-                      key={k}
-                      data-on={preset === k}
-                      onClick={() => {
-                        setPreset(k);
-                        setPowerW(PRESETS[k].powerW);
-                      }}
-                    >
-                      {PRESETS[k].label}
-                    </button>
-                  ))}
-                </div>
-                <div>
-                  <div className="mb-1.5 flex items-baseline justify-between">
-                    <span className="label">Potencia sostenida</span>
-                    <span className="num text-sm font-bold text-[var(--color-accent)]">
-                      {powerW} W
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={80}
-                    max={320}
-                    step={5}
-                    value={powerW}
-                    onChange={(e) => setPowerW(Number(e.target.value))}
-                  />
-                  <p className="mt-1 text-[0.66rem] leading-snug text-[var(--color-faint)]">
-                    Es lo que puedes mantener toda la ruta. Ajusta la potencia y verás cómo
-                    cambian los tiempos, no la forma de la ruta.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* --- perfil de ciclista --- */}
+          <button
+            type="button"
+            onClick={() => setProfileOpen(true)}
+            className="card flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:border-white/20"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+              style={{ background: "var(--color-accent-soft)", color: "var(--color-accent)" }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="5.5" cy="17.5" r="3.5" />
+                <circle cx="18.5" cy="17.5" r="3.5" />
+                <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM12 17.5 9 9l4-2 3 4h3" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.8rem] font-semibold">Perfil de ciclista</span>
+              <span className="num block truncate text-[0.66rem] text-[var(--color-faint)]">
+                {riderPayload.powerW} W · CdA {riderPayload.cda.toFixed(3)} ·{" "}
+                {riderPayload.massKg.toFixed(0)} kg ·{" "}
+                {setup.groupSize > 1 ? `grupo de ${setup.groupSize}` : "solo"}
+              </span>
+            </span>
+            <span className="shrink-0 text-[var(--color-faint)]">›</span>
+          </button>
 
           <button
             className="btn btn-primary w-full !py-2.5 !text-[0.9rem]"
@@ -501,10 +525,23 @@ export default function Planner() {
               onPickHour={(iso) => run(Date.parse(iso))}
               busy={busy}
               shareUrl={shareUrl}
+              intensityWarning={intensitySanity(
+                setup.intensity,
+                shown.evaluation.timeS / 3600
+              )}
             />
           )}
         </div>
       </div>
+
+      {profileOpen && (
+        <RiderSheet
+          setup={setup}
+          onChange={setSetup}
+          surface={surface}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
     </main>
   );
 }
@@ -590,6 +627,7 @@ function Results({
   onPickHour,
   busy,
   shareUrl,
+  intensityWarning,
 }: {
   result: PlanResponse;
   shown: Candidate;
@@ -599,6 +637,7 @@ function Results({
   onPickHour: (iso: string) => void;
   busy: boolean;
   shareUrl: string;
+  intensityWarning: string | null;
 }) {
   const [copied, setCopied] = useState(false);
   const ev = shown.evaluation;
@@ -630,6 +669,12 @@ function Results({
           </p>
         </div>
       </div>
+
+      {intensityWarning && (
+        <p className="rounded-xl border border-amber-400/25 bg-amber-400/8 px-3 py-2 text-[0.74rem] leading-snug text-amber-200/90">
+          {intensityWarning}
+        </p>
+      )}
 
       {(result.wind.worst.gust * 3.6 > 55 || result.wind.worst.precipProb > 40) && (
         <p className="rounded-xl border border-amber-400/25 bg-amber-400/8 px-3 py-2 text-[0.74rem] leading-snug text-amber-200/90">
@@ -773,9 +818,29 @@ function Results({
           <p>
             El viento a 10 m se reduce a la altura del ciclista y se descompone en
             componente frontal y lateral; la velocidad sale de resolver el balance
-            de potencia ({result.meta.rider.powerW} W, CdA {result.meta.rider.cda},
-            Crr {result.meta.rider.crr}, {result.meta.rider.massKg} kg).
+            de potencia ({result.meta.rider.powerW} W, CdA{" "}
+            {result.meta.rider.cda.toFixed(3)}, Crr{" "}
+            {result.meta.rider.crr.toFixed(4)}, {result.meta.rider.massKg.toFixed(1)} kg).
           </p>
+          <p>
+            Densidad del aire media en ruta{" "}
+            <span className="num">{ev.meanRho.toFixed(3)} kg/m³</span> (
+            {result.wind.atStart.tempC.toFixed(0)} °C,{" "}
+            {result.wind.atStart.pressure.toFixed(0)} hPa,{" "}
+            {result.wind.atStart.humidity.toFixed(0)}% de humedad). Frente a los
+            1,225 estándar a nivel del mar, aquí el aire pesa un{" "}
+            {Math.abs(Math.round((1 - ev.meanRho / 1.225) * 100))}%{" "}
+            {ev.meanRho < 1.225 ? "menos" : "más"}.
+          </p>
+          {(result.meta.rider.draftFraction ?? 0) > 0 && (
+            <p>
+              Rebufo: vas tapado el{" "}
+              {Math.round((result.meta.rider.draftFraction ?? 0) * 100)}% del tiempo con
+              un ahorro del{" "}
+              {Math.round((1 - (result.meta.rider.draftMultiplier ?? 1)) * 100)}%, y el
+              beneficio se degrada tramo a tramo según lo angulado que entre el aire.
+            </p>
+          )}
           {result.meta.warnings.map((w, i) => (
             <p key={i} className="text-amber-300/70">
               {w}

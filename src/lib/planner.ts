@@ -210,8 +210,12 @@ export async function plan(
 
   const windAtMs = (lon: number, lat: number, epochMs: number) => {
     const s = wind.sample(lon, lat, epochMs);
-    return { speed: s.speed10, fromDeg: s.fromDeg };
+    return { speed: s.speed10, fromDeg: s.fromDeg, rho: s.rho };
   };
+
+  // Densidad de referencia para el tiempo "en calma": la del punto de salida a
+  // la hora base. Solo sirve de vara de medir, no entra en la simulacion real.
+  const refRho = wind.sample(req.start[0], req.start[1], baseMs).rho;
 
   // El tiempo "en calma" no depende de la hora: lo calculamos una vez por
   // geometria y sentido. Es la mitad del coste de la simulacion.
@@ -219,7 +223,7 @@ export async function plan(
   const calmFor = (key: string, segs: Segment[]) => {
     let v = calmCache.get(key);
     if (v == null) {
-      v = calmTime(segs, rider);
+      v = calmTime(segs, rider, refRho);
       calmCache.set(key, v);
     }
     return v;
