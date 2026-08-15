@@ -204,8 +204,6 @@ export interface RouteOptions {
    * sitio: el famoso pico de ida y vuelta.
    */
   roundTrip?: { lengthM: number; points: number; seed: number };
-  /** Prohibir explicitamente el firme sin asfaltar. */
-  avoidUnpaved?: boolean;
 }
 
 async function routeORS(
@@ -218,8 +216,11 @@ async function routeORS(
   if (!key) throw new RoutingError("Falta ORS_API_KEY");
   const profile = orsProfile(surface);
 
+  // OJO: `unpavedroads` NO es un valor valido de avoid_features en los perfiles
+  // ciclistas de ORS (devuelve un 2003 y tumba la peticion entera). El firme se
+  // controla eligiendo perfil y filtrando despues por el reparto real que
+  // devuelve `extras.surface`, que es dato medido y no una preferencia.
   const avoid = ["ferries"];
-  if (opts.avoidUnpaved) avoid.push("unpavedroads");
 
   const body: Record<string, unknown> = {
     coordinates: opts.roundTrip ? [waypoints[0]] : waypoints,

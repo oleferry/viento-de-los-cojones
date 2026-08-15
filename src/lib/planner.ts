@@ -194,7 +194,7 @@ export async function plan(
   if (req.shape === "lineal") {
     if (!req.end) throw new Error("Una ruta lineal necesita punto de llegada");
     routingCalls++;
-    const geom = await limit(() => route([req.start, req.end!], req.surface, chain, signal, { avoidUnpaved }));
+    const geom = await limit(() => route([req.start, req.end!], req.surface, chain, signal));
     usedProvider = geom.provider;
     if (geom.fallbacks?.length) warnings.push(...geom.fallbacks);
     shapes.push(buildShape("directa", "Ruta directa", geom));
@@ -215,7 +215,7 @@ export async function plan(
     const results = await Promise.allSettled(
       variants.map((v) => {
         routingCalls++;
-        return limit(() => route([req.start, v.via, req.end!], req.surface, chain, signal, { avoidUnpaved }));
+        return limit(() => route([req.start, v.via, req.end!], req.surface, chain, signal));
       })
     );
     results.forEach((r, i) => {
@@ -234,6 +234,10 @@ export async function plan(
     // enrutamos los que valen la pena. Pasamos de 12 peticiones a 7, que en el
     // OSRM publico es la diferencia entre funcionar y comerse un 502.
     const wind = await windPromise;
+    // Con ORS repartimos el presupuesto de peticiones entre los dos
+    // generadores: menos rumbos, pero a cambio bucles trazados sobre la red
+    // real. Sin ORS todo va al barrido, que es lo unico disponible.
+    const usaRoundTrip = chain[0] === "ors" && targetM <= ROUND_TRIP_MAX_M;
     const headings = preselectHeadings(
       allHeadings,
       req,
@@ -242,7 +246,7 @@ export async function plan(
       wind,
       baseMs,
       rider,
-      7
+      usaRoundTrip ? 5 : 7
     );
 
     type Job = { id: string; heading?: number; run: () => Promise<Awaited<ReturnType<typeof route>>> };
@@ -251,7 +255,7 @@ export async function plan(
       heading: h,
       run: () => {
         const wps = polygonLoop(req.start, h, targetM / DETOUR_FACTOR, n, true);
-        return route(wps, req.surface, chain, signal, { avoidUnpaved });
+        return route(wps, req.surface, chain, signal);
       },
     }));
 
@@ -260,8 +264,8 @@ export async function plan(
     // caen y provocan idas y vueltas. ORS traza el bucle siguiendo la red de
     // carreteras, asi que sale mucho mas limpio. Se usan los dos y que decida
     // la puntuacion.
-    if (chain[0] === "ors" && targetM <= ROUND_TRIP_MAX_M) {
-      for (let s = 0; s < 6; s++) {
+    if (usaRoundTrip) {
+      for (let s = 0; s < 5; s++) {
         jobs.push({
           id: `rt${s}`,
           run: () =>
@@ -271,7 +275,6 @@ export async function plan(
               ["ors"],
               signal,
               {
-                avoidUnpaved,
                 roundTrip: { lengthM: targetM, points: 4 + (s % 3), seed: s * 7 + 1 },
               }
             ),
