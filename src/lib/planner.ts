@@ -336,38 +336,34 @@ export async function plan(
       );
     }
 
-    // Los filtros van en este orden a proposito. Primero la distancia: no
-    // sirve de nada una ruta impecable de 57 km cuando se han pedido 40.
-    const cerca = shapes.filter(
-      (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
+    const quedarse = (lista: Shaped[]) => {
+      if (!lista.length) return;
+      shapes.length = 0;
+      shapes.push(...lista);
+    };
+
+    /*
+     * El orden de los filtros importa, y el criterio es: primero lo que se ha
+     * pedido explicitamente, despues la calidad del trazado.
+     *
+     *   1. Distancia — no sirve una ruta impecable de 57 km si se pidieron 40.
+     *   2. Firme     — es lo que se ha elegido en "Por donde".
+     *   3. Giros     — un 180 en mitad del campo arruina la salida.
+     *   4. Solape    — lo demas que se repita.
+     *
+     * Poner los giros antes que el firme dejaba a "camino" sin caminos: se
+     * descartaban las rutas de tierra por un giro y quedaba una de asfalto.
+     */
+    quedarse(
+      shapes.filter(
+        (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
+      ).length >= 2
+        ? shapes.filter(
+            (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
+          )
+        : shapes
     );
-    if (cerca.length >= 2) {
-      shapes.length = 0;
-      shapes.push(...cerca);
-    }
 
-    // Despues, fuera las que se dan la vuelta en mitad del campo. Esto va
-    // ANTES que el solape total, porque un solo pico de ida y vuelta arruina
-    // la salida aunque en porcentaje del total apenas se note.
-    //
-    // Nos quedamos con el MINIMO de cambios de sentido, no con "las que tengan
-    // dos o mas sin ellos": mas vale una sola ruta sin giros que cuatro para
-    // elegir, todas con un 180 en mitad de la nada.
-    const minVueltas = Math.min(...shapes.map((s) => s.vueltas));
-    const sinVueltas = shapes.filter((s) => s.vueltas === minVueltas);
-    if (sinVueltas.length) {
-      shapes.length = 0;
-      shapes.push(...sinVueltas);
-    }
-
-    // Y fuera las que se pisan a si mismas.
-    const limpias = shapes.filter((s) => s.overlap <= MAX_OVERLAP);
-    if (limpias.length >= 2) {
-      shapes.length = 0;
-      shapes.push(...limpias);
-    }
-
-    // Por ultimo el firme.
     if (avoidUnpaved) {
       const conDato = shapes.filter((s) => s.geometry.unpavedFrac != null);
       if (conDato.length) {
@@ -377,15 +373,13 @@ export async function plan(
           (s) => (s.geometry.unpavedFrac ?? 0) <= MAX_UNPAVED
         );
         if (asfaltadas.length) {
-          shapes.length = 0;
-          shapes.push(...asfaltadas);
+          quedarse(asfaltadas);
         } else {
           const mejor = Math.min(...conDato.map((s) => s.geometry.unpavedFrac ?? 1));
           const cerca = conDato.filter(
             (s) => (s.geometry.unpavedFrac ?? 1) <= mejor + 0.01
           );
-          shapes.length = 0;
-          shapes.push(...cerca);
+          quedarse(cerca);
           warnings.push(
             `Desde ahí no sale ningún bucle de esa distancia sin pisar algo de camino: el mejor lleva un ${(mejor * 100).toFixed(1)}% sin asfaltar.`
           );
@@ -401,13 +395,21 @@ export async function plan(
           const conTierra = conDato.filter(
             (s) => (s.geometry.unpavedFrac ?? 0) >= mejor * 0.6
           );
-          if (conTierra.length) {
-            shapes.length = 0;
-            shapes.push(...conTierra);
-          }
+          if (conTierra.length) quedarse(conTierra);
         }
       }
     }
+
+    // Ya con el firme decidido, nos quedamos con el MINIMO de cambios de
+    // sentido. No con "las que tengan dos o mas sin ellos": mas vale una sola
+    // ruta sin giros que cuatro para elegir, todas con un 180 en mitad de la
+    // nada.
+    const minVueltas = Math.min(...shapes.map((s) => s.vueltas));
+    quedarse(shapes.filter((s) => s.vueltas === minVueltas));
+
+    // Y por ultimo lo que se pise a si mismo.
+    const limpias = shapes.filter((s) => s.overlap <= MAX_OVERLAP);
+    if (limpias.length >= 2) quedarse(limpias);
   }
 
   const wind = await windPromise;
