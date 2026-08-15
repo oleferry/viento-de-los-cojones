@@ -34,15 +34,24 @@ const ORS_SURFACE_NAMES: Record<number, string> = {
 
 /**
  * Orden de preferencia. Se prueban en cadena: si uno se cae o satura, se pasa
- * al siguiente en vez de tumbar el plan entero. Los tres publicos aguantan uso
- * moderado, pero ninguno garantiza nada, y de tanto en tanto uno de ellos deja
- * de responder.
+ * al siguiente en vez de tumbar el plan entero.
+ *
+ * El orden sale de medir (`/api/diag`), no de intuiciones. Desde cdg1:
+ *
+ *     openrouteservice   138 ms
+ *     osrm-fossgis        69 ms
+ *     brouter         12 560 ms
+ *
+ * BRouter tiene los mejores perfiles ciclistas de los tres, pero calcula cada
+ * ruta en el momento y su servidor publico va sobrecargado: a doce segundos por
+ * peticion y diez peticiones por plan, no hay funcion que aguante. Se queda de
+ * ultimo recurso hasta que vuelva a responder rapido.
  */
 export function providerChain(): Provider[] {
   const forced = process.env.ROUTING_PROVIDER?.toLowerCase();
   const all: Provider[] = process.env.ORS_API_KEY
-    ? ["ors", "brouter", "osrm"]
-    : ["brouter", "osrm"];
+    ? ["ors", "osrm", "brouter"]
+    : ["osrm", "brouter"];
   if (forced === "ors" || forced === "brouter" || forced === "osrm") {
     return [forced, ...all.filter((p) => p !== forced)];
   }
