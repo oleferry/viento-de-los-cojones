@@ -6,6 +6,7 @@ import PlaceInput from "./PlaceInput";
 import WindRose from "./WindRose";
 import RouteProfile from "./RouteProfile";
 import HourStrip from "./HourStrip";
+import Outlook from "./Outlook";
 import RiderSheet from "./RiderSheet";
 import { downloadGPX } from "@/lib/gpx";
 import {
@@ -194,6 +195,7 @@ export default function Planner() {
             windMode,
             departureMs: overrideDepartureMs ?? new Date(departure).getTime(),
             flexHours: overrideDepartureMs != null ? 0 : flexHours,
+            tzOffsetMinutes: -new Date().getTimezoneOffset(),
             rider: riderPayload,
           }),
         });
@@ -201,7 +203,9 @@ export default function Planner() {
         if (!res.ok) throw new Error(data.error ?? `Error ${res.status}`);
         setResult((prev) =>
           overrideDepartureMs != null && prev
-            ? { ...data, hours: prev.hours } // conservamos la franja horaria original
+            ? // Al elegir una hora concreta se replanifica con margen cero, asi
+              // que conservamos las franjas originales para no perder el contexto.
+              { ...data, hours: prev.hours, outlook: prev.outlook }
             : data
         );
         setChosenId(null);
@@ -744,6 +748,13 @@ function Results({
 
       <HourStrip
         hours={result.hours}
+        selected={shown.departure}
+        onSelect={onPickHour}
+        busy={busy}
+      />
+
+      <Outlook
+        outlook={result.outlook ?? []}
         selected={shown.departure}
         onSelect={onPickHour}
         busy={busy}

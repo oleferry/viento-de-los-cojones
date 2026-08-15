@@ -35,6 +35,12 @@ const HEADING_STEP = 30;
 const MAX_REFINEMENTS = 3;
 /** Longitud de los tramos en los que troceamos la ruta para simularla. */
 const SEGMENT_STEP_M = 400;
+/**
+ * Dias que se muestran en el pronostico a varios dias. Mas de cinco es
+ * enganarse: la prevision de viento a esa distancia ya no distingue una tarde
+ * de otra.
+ */
+const OUTLOOK_DAYS = 5;
 
 interface Shaped {
   id: string;
@@ -106,12 +112,14 @@ export async function plan(
       ? Math.max(4000, haversine(req.start, req.end) / 2)
       : Math.max(4000, targetM / (2 * Math.PI));
 
-  const horizonDays = Math.ceil(
-    (baseMs + (flex + 14) * 3600000 - Date.now()) / 86400000
-  );
+  // Horas de prevision necesarias: cubrir el margen pedido, la duracion de la
+  // ruta y los OUTLOOK_DAYS dias del pronostico a varios dias. Mas alla de eso
+  // la prevision de viento ya no vale para planificar nada.
+  const horizonHours =
+    Math.ceil((baseMs - Date.now()) / 3600000) + flex + 14 + OUTLOOK_DAYS * 24;
   const windPromise = fetchWindField(
     samplingGrid(center, spanM, 6),
-    Math.max(2, Math.min(16, horizonDays + 1)),
+    Math.max(30, Math.min(240, horizonHours)),
     signal
   );
 
@@ -245,8 +253,12 @@ export async function plan(
   // la hora base. Solo sirve de vara de medir, no entra en la simulacion real.
   const refRho = wind.sample(req.start[0], req.start[1], baseMs).rho;
 
-  // El tiempo "en calma" no depende de la hora: lo calculamos una vez por
-  // geometria y sentido. Es la mitad del coste de la simulacion.
+  // El tiempo "en calma" de referencia, con una densidad del aire fija. Sirve
+  // para ORDENAR candidatos (todos con la misma vara de medir) y se cachea
+  // porque no depende de la hora. Para lo que se le ENSENA al usuario se
+  // recalcula sin cache, con la densidad real de cada instante: si no, una
+  // tarde de aire ligero salia "mas rapida que en calma" y el peaje del viento
+  // se iba a negativo sin que hubiera nada raro en el viento.
   const calmCache = new Map<string, number>();
   const calmFor = (key: string, segs: Segment[]) => {
     let v = calmCache.get(key);
@@ -399,7 +411,15 @@ export async function plan(
 
   const toCandidate = (s: Scored): Candidate => {
     const segs = s.reversed ? s.shape.segmentsRev : s.shape.segmentsFwd;
-    const res = s.evaluation.segments ?? [];
+    // Reevaluacion honesta para los numeros que se publican: sin el calma
+    // cacheado, para que el peaje del viento compare contra la misma densidad
+    // del aire que sufre la ruta.
+    const evaluation0 = evaluateRoute(
+      segs,
+      (lon, lat, tSec) => windAtMs(lon, lat, s.departureMs + tSec * 1000),
+      rider
+    );
+    const res = evaluation0.segments ?? [];
     let elapsed = 0;
     const track: TrackPoint[] = segs.map((seg, i) => {
       const r = res[i];
@@ -443,7 +463,7 @@ export async function plan(
       });
     }
 
-    const { segments: _drop, ...evaluation } = s.evaluation;
+    const { segments: _drop, ...evaluation } = evaluation0;
     return {
       id: `${s.shape.id}${s.reversed ? "-inv" : ""}`,
       label: s.reversed ? `${s.shape.label} (sentido inverso)` : s.shape.label,
@@ -480,6 +500,34 @@ export async function plan(
     }))
     .sort((a, b) => Date.parse(a.departure) - Date.parse(b.departure));
 
+  // --- Previsión a varios días para la ruta ganadora ----------------------
+  // Solo se recalcula la simulacion, que es CPU pura: ni una peticion mas.
+  const bestSegs = best.reversed ? best.shape.segmentsRev : best.shape.segmentsFwd;
+  const bestCalm = calmFor(`${best.shape.key}:${best.reversed}`, bestSegs);
+  const tz = (req.tzOffsetMinutes ?? 0) * 60000;
+  const outlook: HourOption[] = [];
+  const outlookEnd = Math.min(wind.end - 3600000, Date.now() + OUTLOOK_DAYS * 86400000);
+  for (let t = Math.max(wind.start, nextHour(Date.now())); t <= outlookEnd; t += 3600000) {
+    const localHour = new Date(t + tz).getUTCHours();
+    if (localHour < 6 || localHour > 20) continue; // de noche no se sale
+    const ev = evaluateRoute(
+      bestSegs,
+      (lon, lat, tSec) => windAtMs(lon, lat, t + tSec * 1000)
+    , rider);
+    outlook.push({
+      departure: new Date(t).toISOString(),
+      timeS: ev.timeS,
+      windCostS: ev.windCostS,
+      homeTailwind: ev.homeTailwind,
+      meanHeadwind: ev.meanHeadwind,
+      score:
+        req.windMode === "min_effort"
+          ? ev.timeS
+          : ev.timeS - ev.homeTailwind * 900 +
+            (req.windMode === "hard_first" ? ev.outboundTailwind * 300 : 0),
+    });
+  }
+
   const bestCandidate = toCandidate(best);
 
   // Lo peor de la ruta: rachas y probabilidad de agua en el momento y punto
@@ -496,6 +544,7 @@ export async function plan(
     best: bestCandidate,
     alternatives,
     hours,
+    outlook,
     wind: {
       atStart: wind.sample(req.start[0], req.start[1], best.departureMs),
       worst,

@@ -24,6 +24,8 @@ export interface PlanRequest {
   departureMs?: number;
   /** Cuantas horas alrededor de `departureMs` se exploran para sugerir mejor hora. */
   flexHours?: number;
+  /** Desfase horario del usuario en minutos (para saber que es "de dia"). */
+  tzOffsetMinutes?: number;
   rider?: Partial<RiderProfile>;
 }
 
@@ -183,8 +185,14 @@ export interface HourOption {
 export interface PlanResponse {
   best: Candidate;
   alternatives: Candidate[];
-  /** Ranking de horas de salida para la ruta ganadora. */
+  /** Ranking de horas de salida para la ruta ganadora, dentro del margen pedido. */
   hours: HourOption[];
+  /**
+   * La misma ruta ganadora evaluada en todas las horas de luz de los proximos
+   * dias. No cuesta ni una peticion mas de routing y responde a la pregunta
+   * util de verdad: "¿que dia me conviene hacer esto?".
+   */
+  outlook: HourOption[];
   wind: {
     /** Viento en el punto de salida a la hora elegida. */
     atStart: WindSample;

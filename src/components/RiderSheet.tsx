@@ -22,7 +22,12 @@ import type { Surface } from "@/lib/types";
 
 interface Props {
   setup: RiderSetup;
-  onChange: (s: RiderSetup) => void;
+  /**
+   * Actualizador, no valor. Si cada control mandase `{...setup, campo: v}`
+   * partiendo de la copia que capturo en su render, dos cambios seguidos antes
+   * de repintar se pisarian y el segundo borraria al primero.
+   */
+  onChange: (update: (prev: RiderSetup) => RiderSetup) => void;
   surface: Surface;
   onClose: () => void;
 }
@@ -31,7 +36,7 @@ const GROUPS = [1, 2, 3, 4, 6, 8, 15, 30];
 
 export default function RiderSheet({ setup, onChange, surface, onClose }: Props) {
   const set = <K extends keyof RiderSetup>(key: K, value: RiderSetup[K]) =>
-    onChange({ ...setup, [key]: value });
+    onChange((prev) => ({ ...prev, [key]: value }));
 
   const cda = useMemo(() => computeCdA(setup), [setup]);
   const crr = useMemo(() => computeCrr(setup, surface), [setup, surface]);
@@ -60,7 +65,7 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
           </div>
           <div className="flex items-center gap-2">
             <button className="btn !px-2.5 !py-1.5 !text-[0.7rem]"
-              onClick={() => onChange({ ...DEFAULT_SETUP })}>
+              onClick={() => onChange(() => ({ ...DEFAULT_SETUP }))}>
               Reiniciar
             </button>
             <button className="btn btn-primary !px-3.5 !py-1.5" onClick={onClose}>
@@ -160,13 +165,13 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
                   {GROUPS.map((n) => (
                     <button
                       key={n}
-                      onClick={() => {
-                        onChange({
-                          ...setup,
+                      onClick={() =>
+                        onChange((prev) => ({
+                          ...prev,
                           groupSize: n,
                           draftFraction: defaultDraftFraction(n),
-                        });
-                      }}
+                        }))
+                      }
                       data-on={setup.groupSize === n}
                       className="num h-9 w-11 rounded-lg border text-[0.8rem] font-semibold transition-all"
                       style={{

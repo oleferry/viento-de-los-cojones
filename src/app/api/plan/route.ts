@@ -81,6 +81,10 @@ export async function POST(request: Request) {
         ? Number(body.departureMs)
         : undefined,
     flexHours: Number.isFinite(body.flexHours) ? Number(body.flexHours) : 3,
+    tzOffsetMinutes:
+      Number.isFinite(body.tzOffsetMinutes) && Math.abs(body.tzOffsetMinutes) <= 840
+        ? Number(body.tzOffsetMinutes)
+        : 0,
     rider: sanitizeRider(body.rider),
   };
 

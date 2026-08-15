@@ -134,7 +134,7 @@ function num(x: unknown): number {
  */
 export async function fetchWindField(
   points: LonLat[],
-  forecastDays = 3,
+  forecastHours = 72,
   signal?: AbortSignal
 ): Promise<WindField> {
   const url = new URL(OPEN_METEO);
@@ -143,7 +143,9 @@ export async function fetchWindField(
   url.searchParams.set("hourly", HOURLY);
   url.searchParams.set("wind_speed_unit", "ms");
   url.searchParams.set("timezone", "UTC");
-  url.searchParams.set("forecast_days", String(Math.max(1, Math.min(16, forecastDays))));
+  // Se acota por HORAS, no por dias: en cuanto se manda `past_hours`,
+  // Open-Meteo ignora `forecast_days` y devuelve los 16 dias completos.
+  url.searchParams.set("forecast_hours", String(Math.max(6, Math.min(384, forecastHours))));
   url.searchParams.set("past_hours", "1");
 
   // La prevision se actualiza como mucho cada hora, asi que cachear 15 minutos
