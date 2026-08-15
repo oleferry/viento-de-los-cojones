@@ -144,7 +144,13 @@ export async function plan(
    * por asfalto, asi que "camino" es preferencia y "carretera" es obligacion.
    */
   const avoidUnpaved = req.surface === "carretera";
-  const MIN_PAVED = 0.97;
+  /**
+   * Umbral para descartar de plano. En Tierra de Campos casi cualquier bucle
+   * cruza algun tramo de concentracion parcelaria, asi que exigir el 100%
+   * dejaria sin rutas; se descarta lo que no llegue aqui y, entre lo que
+   * queda, la puntuacion premia el asfalto.
+   */
+  const MIN_PAVED = 0.95;
 
   // --- 2. Candidatos geometricos -----------------------------------------
   const limit = pLimit(chain[0] === "ors" ? 5 : 3);
@@ -444,6 +450,12 @@ export async function plan(
       // que no te hace desandar lo andado. El peso es alto a proposito, para
       // que gane a una diferencia moderada de viento.
       s.score += s.shape.overlap * 2.5;
+      // Con bici de carretera, cada metro de tierra pesa. Sin esto se avisaba
+      // de que el mejor bucle tenia un 90% de asfalto y acto seguido se elegia
+      // uno del 68%, porque el firme no entraba en la puntuacion.
+      if (avoidUnpaved) {
+        s.score += (1 - (s.shape.geometry.pavedFrac ?? 1)) * 3;
+      }
     }
     list.sort((a, b) => a.score - b.score);
   };
