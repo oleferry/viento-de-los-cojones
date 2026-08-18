@@ -11,20 +11,20 @@ export const metadata: Metadata = {
         ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
         : "http://localhost:3000")
   ),
-  title: "Viento de los cojones — rutas en bici optimizadas por el aire",
+  title: "Ondivento — rutas en bici optimizadas por el aire",
   description: DESCRIPTION,
-  applicationName: "Viento de los cojones",
+  applicationName: "Ondivento",
   openGraph: {
     type: "website",
     locale: "es_ES",
-    title: "Viento de los cojones",
+    title: "Ondivento",
     description: DESCRIPTION,
   },
   twitter: { card: "summary_large_image" },
   // iOS no lee el manifest para esto: hay que decirselo aparte.
   appleWebApp: {
     capable: true,
-    title: "Viento",
+    title: "Ondivento",
     statusBarStyle: "black-translucent",
   },
 };

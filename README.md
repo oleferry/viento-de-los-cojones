@@ -1,4 +1,4 @@
-# Viento de los cojones
+# Ondivento
 
 Planificador de rutas en bici que **traza la ruta en función del viento**, no que
 te dice el viento de una ruta que ya tienes.
@@ -206,6 +206,9 @@ Clave gratuita de OpenRouteService en <https://openrouteservice.org/dev/#/signup
 3. En *Settings → Environment Variables*, añade `ORS_API_KEY` si tienes clave.
    Los cambios de variables solo entran con un despliegue nuevo.
 4. Deploy.
+5. Dominio propio: en *Settings → Domains*, añade `ondivento.com` (y
+   `www.ondivento.com` si se quiere esa variante) y configura los registros
+   que Vercel indique en el registrador del dominio.
 
 ### La región importa, y mucho
 

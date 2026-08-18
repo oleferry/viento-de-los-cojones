@@ -1,4 +1,4 @@
--- Esquema de "Viento de los cojones".
+-- Esquema de "Ondivento".
 -- Se aplica solo con: npm run db:setup
 -- Es idempotente: se puede ejecutar las veces que haga falta.
 

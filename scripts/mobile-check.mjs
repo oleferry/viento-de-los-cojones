@@ -12,7 +12,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const URL_BASE = process.argv[2] || "https://viento-de-los-cojones.vercel.app";
+const URL_BASE = process.argv[2] || "https://ondivento.com";
 const OUT = process.argv[3] || "mobile";
 await mkdir(OUT, { recursive: true });
 

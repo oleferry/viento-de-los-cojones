@@ -6,7 +6,7 @@ export type Provider = "ors" | "brouter" | "osrm";
 const ORS_BASE = "https://api.openrouteservice.org";
 const BROUTER_BASE = "https://brouter.de/brouter";
 const OSRM_BASE = "https://routing.openstreetmap.de";
-const UA = "viento-de-los-cojones/0.1 (planificador de rutas ciclistas)";
+const UA = "ondivento/0.1 (+https://ondivento.com; planificador de rutas ciclistas)";
 
 /** Codigos de firme de ORS que consideramos pavimento rodable con bici de carretera. */
 const ORS_PAVED = new Set([1, 3, 4, 5, 6, 7, 14]);

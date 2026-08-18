@@ -20,7 +20,7 @@ async function timed(name: string, url: string, init?: RequestInit) {
       ...init,
       cache: "no-store",
       signal: AbortSignal.timeout(20_000),
-      headers: { "User-Agent": "viento-de-los-cojones/diag", ...(init?.headers ?? {}) },
+      headers: { "User-Agent": "ondivento/diag", ...(init?.headers ?? {}) },
     });
     const body = await res.text();
     return {

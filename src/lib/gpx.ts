@@ -26,7 +26,7 @@ export function toGPX(candidate: Candidate, name: string): string {
     .join("\n");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Viento de los cojones" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" creator="Ondivento" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata>
     <name>${esc(name)}</name>
     <time>${new Date(start).toISOString()}</time>

@@ -498,7 +498,7 @@ export default function Planner() {
                   result ? "text-[0.9rem] md:text-[1.05rem]" : "text-[1.05rem]"
                 }`}
               >
-                Viento de los cojones
+                Ondivento
               </h1>
               <p
                 className={`mt-0.5 text-[0.72rem] leading-snug text-[var(--color-faint)] ${

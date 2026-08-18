@@ -9,7 +9,7 @@
 import puppeteer from "puppeteer";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const URL_BASE = process.argv[2] || "https://viento-de-los-cojones.vercel.app";
+const URL_BASE = process.argv[2] || "https://ondivento.com";
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -79,7 +79,7 @@ const offline = await page.evaluate(() => ({
     b.textContent.includes("Trazar ruta")
   ),
 }));
-check("la app abre sin red", offline.titulo === "Viento de los cojones", offline.titulo ?? "en blanco");
+check("la app abre sin red", offline.titulo === "Ondivento", offline.titulo ?? "en blanco");
 check("el formulario esta ahi", offline.hayBoton);
 await page.setOfflineMode(false);
 

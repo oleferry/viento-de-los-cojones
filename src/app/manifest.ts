@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Viento de los cojones",
-    short_name: "Viento",
+    name: "Ondivento",
+    short_name: "Ondivento",
     description:
       "Rutas en bici trazadas según el viento, hora a hora. Pensado para Tierra de Campos.",
     start_url: "/",

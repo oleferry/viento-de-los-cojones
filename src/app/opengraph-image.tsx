@@ -2,8 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt =
-  "Viento de los cojones — rutas en bici optimizadas según el aire";
+export const alt = "Ondivento — rutas en bici optimizadas según el aire";
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -43,7 +42,7 @@ export default function OpengraphImage() {
             letterSpacing: -2,
           }}
         >
-          Viento de los cojones
+          Ondivento
         </div>
         <div
           style={{

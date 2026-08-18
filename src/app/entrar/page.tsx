@@ -4,7 +4,7 @@ import { auth, authAvailable, signIn } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Entrar · Viento de los cojones" };
+export const metadata = { title: "Entrar · Ondivento" };
 
 export default async function Entrar({
   searchParams,
