@@ -14,7 +14,14 @@ export interface ImportedTrack {
   hasElevation: boolean;
 }
 
-export class ImportError extends Error {}
+export type ImportErrorCode = "unreadable" | "notXml" | "noTrack" | "tooBig";
+
+/** Lleva una CLAVE, no un texto: lo traduce quien lo pinta. */
+export class ImportError extends Error {
+  constructor(readonly code: ImportErrorCode) {
+    super(code);
+  }
+}
 
 const num = (s: string | null | undefined): number => {
   const v = Number(s);
@@ -42,7 +49,7 @@ function fromGPX(doc: Document): ImportedTrack | null {
     }
   }
   const name =
-    doc.getElementsByTagName("name")[0]?.textContent?.trim() || "Mi ruta";
+    doc.getElementsByTagName("name")[0]?.textContent?.trim() || "";
   return { name, coords, hasElevation: conEle > coords.length * 0.5 };
 }
 
@@ -63,7 +70,7 @@ function fromTCX(doc: Document): ImportedTrack | null {
       coords.push([lon, lat]);
     }
   }
-  const name = doc.getElementsByTagName("Name")[0]?.textContent?.trim() || "Mi ruta";
+  const name = doc.getElementsByTagName("Name")[0]?.textContent?.trim() || "";
   return { name, coords, hasElevation: conEle > coords.length * 0.5 };
 }
 
@@ -82,7 +89,7 @@ function fromKML(doc: Document): ImportedTrack | null {
       coords.push([lon, lat]);
     }
   }
-  const name = doc.getElementsByTagName("name")[0]?.textContent?.trim() || "Mi ruta";
+  const name = doc.getElementsByTagName("name")[0]?.textContent?.trim() || "";
   return coords.length ? { name, coords, hasElevation: conEle > coords.length * 0.5 } : null;
 }
 
@@ -110,30 +117,30 @@ export function parseTrack(texto: string, nombreFichero: string): ImportedTrack 
   try {
     doc = new DOMParser().parseFromString(texto, "application/xml");
   } catch {
-    throw new ImportError("No se ha podido leer el fichero.");
+    throw new ImportError("unreadable");
   }
   if (doc.getElementsByTagName("parsererror").length) {
-    throw new ImportError("El fichero no es XML válido.");
+    throw new ImportError("notXml");
   }
 
   const track = fromGPX(doc) ?? fromTCX(doc) ?? fromKML(doc);
   if (!track || track.coords.length < 2) {
-    throw new ImportError(
-      "No he encontrado ninguna traza dentro. Sirven GPX, TCX y KML con puntos de ruta."
-    );
+    throw new ImportError("noTrack");
   }
 
   const base = nombreFichero.replace(/\.[^.]+$/, "");
   return {
     ...track,
-    name: track.name === "Mi ruta" && base ? base : track.name,
+    // Si el fichero no traia nombre, vale el del propio fichero. Si tampoco,
+    // se queda vacio y le pone nombre quien lo pinta, en su idioma.
+    name: track.name || base,
     coords: aligerar(track.coords),
   };
 }
 
 export async function readTrackFile(file: File): Promise<ImportedTrack> {
   if (file.size > 25 * 1024 * 1024) {
-    throw new ImportError("El fichero pesa más de 25 MB.");
+    throw new ImportError("tooBig");
   }
   return parseTrack(await file.text(), file.name);
 }

@@ -2,6 +2,16 @@ import type { LonLat, WindSample } from "./types";
 import { haversine, toDeg, toRad } from "./geo";
 import { airDensity } from "./physics";
 
+/**
+ * Open-Meteo nos esta frenando. Va como clase y no como mensaje suelto para
+ * que quien atiende la peticion pueda contarlo en el idioma de quien pregunta.
+ */
+export class WeatherRateLimited extends Error {
+  constructor() {
+    super("weatherRateLimited");
+  }
+}
+
 const OPEN_METEO = "https://api.open-meteo.com/v1/forecast";
 const HOURLY = [
   "wind_speed_10m",
@@ -165,11 +175,8 @@ export async function fetchWindField(
   }
   if (!res || !res.ok) {
     const cuerpo = res ? await res.text() : "";
-    throw new Error(
-      res?.status === 429
-        ? "El servicio de meteorología está limitando las peticiones. Espera un minuto y vuelve a intentarlo."
-        : `Open-Meteo respondio ${res?.status}: ${cuerpo.slice(0, 200)}`
-    );
+    if (res?.status === 429) throw new WeatherRateLimited();
+    throw new Error(`Open-Meteo respondio ${res?.status}: ${cuerpo.slice(0, 200)}`);
   }
   const raw = await res.json();
   const list: any[] = Array.isArray(raw) ? raw : [raw];
@@ -232,9 +239,3 @@ export async function fetchElevations(
   }
 }
 
-const CARDINALS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
-
-/** Rumbo en grados -> punto cardinal en castellano (O de Oeste, no W). */
-export function cardinal(deg: number): string {
-  return CARDINALS[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
-}

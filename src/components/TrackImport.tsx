@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ImportError, readTrackFile, type ImportedTrack } from "@/lib/gpxImport";
 import { polylineLength } from "@/lib/geo";
 
@@ -13,25 +14,23 @@ export default function TrackImport({ track, onLoad }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [encima, setEncima] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations("Import");
 
   const cargar = async (file: File | undefined) => {
     if (!file) return;
     setError(null);
     try {
-      onLoad(await readTrackFile(file));
+      const leida = await readTrackFile(file);
+      onLoad({ ...leida, name: leida.name || t("defaultName") });
     } catch (err) {
       onLoad(null);
-      setError(
-        err instanceof ImportError
-          ? err.message
-          : "No se ha podido leer el fichero."
-      );
+      setError(t(err instanceof ImportError ? err.code : "unreadable"));
     }
   };
 
   return (
     <div>
-      <div className="label mb-1.5">Tu ruta</div>
+      <div className="label mb-1.5">{t("yourRoute")}</div>
 
       {track ? (
         <div className="card flex items-center gap-3 px-3 py-2.5">
@@ -41,8 +40,8 @@ export default function TrackImport({ track, onLoad }: Props) {
             </span>
             <span className="num block text-[0.66rem] text-[var(--color-faint)]">
               {(polylineLength(track.coords) / 1000).toFixed(1)} km ·{" "}
-              {track.coords.length} puntos ·{" "}
-              {track.hasElevation ? "con altimetría" : "sin altimetría"}
+              {t("points", { n: track.coords.length })} ·{" "}
+              {track.hasElevation ? t("withElevation") : t("withoutElevation")}
             </span>
           </span>
           <button
@@ -53,7 +52,7 @@ export default function TrackImport({ track, onLoad }: Props) {
               if (input.current) input.current.value = "";
             }}
           >
-            Quitar
+            {t("remove")}
           </button>
         </div>
       ) : (
@@ -76,11 +75,9 @@ export default function TrackImport({ track, onLoad }: Props) {
             background: encima ? "var(--color-accent-soft)" : "rgba(255,255,255,.02)",
           }}
         >
-          <span className="text-[0.82rem] font-semibold">
-            Suelta aquí tu GPX
-          </span>
+          <span className="text-[0.82rem] font-semibold">{t("dropHere")}</span>
           <span className="text-[0.68rem] text-[var(--color-faint)]">
-            o toca para buscarlo · GPX, TCX o KML
+            {t("orTap")}
           </span>
         </button>
       )}
@@ -98,9 +95,7 @@ export default function TrackImport({ track, onLoad }: Props) {
       )}
 
       <p className="mt-1.5 text-[0.65rem] leading-snug text-[var(--color-faint)]">
-        Exporta la ruta de Strava, Komoot o Garmin y te digo a qué hora hacerla y
-        en qué sentido. El fichero se lee en tu navegador; al servidor solo van
-        las coordenadas.
+        {t("blurb")}
       </p>
     </div>
   );

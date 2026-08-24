@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import type { HourOption } from "@/lib/types";
 import { fmtDuration, fmtHour } from "@/lib/format";
 
@@ -15,6 +16,8 @@ interface Props {
  * viento te va a cobrar frente a salir en calma: cuanto más baja, mejor rato.
  */
 export default function HourStrip({ hours, selected, onSelect, busy }: Props) {
+  const t = useTranslations("Hours");
+  const locale = useLocale();
   if (hours.length < 2) return null;
   const costs = hours.map((h) => h.windCostS);
   const lo = Math.min(...costs);
@@ -24,9 +27,9 @@ export default function HourStrip({ hours, selected, onSelect, busy }: Props) {
   return (
     <div>
       <div className="mb-2 flex items-baseline justify-between">
-        <span className="label">Hora de salida</span>
+        <span className="label">{t("departureTime")}</span>
         <span className="text-[0.7rem] text-[var(--color-faint)]">
-          sobrecoste del viento
+          {t("windToll")}
         </span>
       </div>
       <div className="scroll-thin flex gap-1.5 overflow-x-auto pb-1">
@@ -40,7 +43,10 @@ export default function HourStrip({ hours, selected, onSelect, busy }: Props) {
               type="button"
               disabled={busy}
               onClick={() => onSelect(h.departure)}
-              title={`${fmtDuration(h.timeS)} · viento medio ${(h.meanHeadwind * 3.6).toFixed(0)} km/h en contra`}
+              title={t("tooltip", {
+                duration: fmtDuration(h.timeS),
+                headwind: (h.meanHeadwind * 3.6).toFixed(0),
+              })}
               className="group relative flex w-[3.4rem] shrink-0 flex-col items-center gap-1 rounded-xl px-1 py-1.5 transition-all disabled:opacity-50"
               style={{
                 background: on ? "rgba(255,138,61,.14)" : "transparent",
@@ -51,7 +57,7 @@ export default function HourStrip({ hours, selected, onSelect, busy }: Props) {
                 className="num text-[0.7rem] font-semibold"
                 style={{ color: on ? "var(--color-accent)" : "var(--color-muted)" }}
               >
-                {fmtHour(h.departure)}
+                {fmtHour(h.departure, locale)}
               </span>
               <span className="flex h-9 w-full items-end justify-center">
                 <span

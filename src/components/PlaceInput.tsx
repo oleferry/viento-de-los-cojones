@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import type { LonLat } from "@/lib/types";
 
 interface Hit {
@@ -30,6 +31,8 @@ export default function PlaceInput({
   picking,
   accent = "#ff8a3d",
 }: Props) {
+  const t = useTranslations("Place");
+  const locale = useLocale();
   const [hits, setHits] = useState<Hit[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -56,12 +59,13 @@ export default function PlaceInput({
       return;
     }
     const ac = new AbortController();
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       setBusy(true);
       try {
-        const res = await fetch(`/api/geocode?q=${encodeURIComponent(text)}`, {
-          signal: ac.signal,
-        });
+        const res = await fetch(
+          `/api/geocode?q=${encodeURIComponent(text)}&locale=${locale}`,
+          { signal: ac.signal }
+        );
         const data = await res.json();
         setHits(data.results ?? []);
         setOpen(true);
@@ -73,10 +77,10 @@ export default function PlaceInput({
       }
     }, 350);
     return () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       ac.abort();
     };
-  }, [text]);
+  }, [text, locale]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -106,7 +110,7 @@ export default function PlaceInput({
           className="-my-2 inline-flex min-h-11 items-center py-2 text-[0.72rem] font-semibold tracking-wide transition-colors md:min-h-0"
           style={{ color: picking ? accent : "var(--color-faint)" }}
         >
-          {picking ? "toca el mapa…" : "marcar en el mapa"}
+          {picking ? t("tapMap") : t("markOnMap")}
         </button>
       </div>
       <div className="relative">

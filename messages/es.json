@@ -1,0 +1,500 @@
+{
+  "Metadata": {
+    "title": "Ondivento — rutas en bici optimizadas por el aire",
+    "description": "Planificador de rutas ciclistas que usa la previsión de viento hora a hora para decidir por dónde salir y a qué hora. Pensado para Tierra de Campos."
+  },
+  "Wind": {
+    "head": "de cara",
+    "nearHead": "casi de cara",
+    "cross": "de lado",
+    "nearTail": "casi a favor",
+    "tail": "a favor",
+    "bf0": "calma",
+    "bf1": "ventolina",
+    "bf2": "flojito",
+    "bf3": "flojo",
+    "bf4": "bonancible",
+    "bf5": "fresquito",
+    "bf6": "fresco",
+    "bf7": "frescachón",
+    "bf8": "temporal",
+    "bf9": "temporal fuerte",
+    "bf10": "temporal duro"
+  },
+  "Map": {
+    "start": "Salida",
+    "finish": "Llegada"
+  },
+  "Account": {
+    "signInToSave": "Entrar para guardar tus rutas",
+    "you": "Tú",
+    "signOut": "salir"
+  },
+  "Group": {
+    "whoWith": "Con quién vas",
+    "alone": "solo",
+    "timeDrafting": "Tiempo a rueda",
+    "explainer": "Relevando a partes iguales irías tapado el {even}% del tiempo. A rueda ahorras un {saving}% de arrastre, así que de media pagas el {paid}% del aire. Tapa menos cuanto más de lado entre."
+  },
+  "Hours": {
+    "departureTime": "Hora de salida",
+    "windToll": "sobrecoste del viento",
+    "tooltip": "{duration} · viento medio {headwind} km/h en contra"
+  },
+  "Rose": {
+    "label": "Viento del {dir} a {kmh} kilómetros por hora"
+  },
+  "Outlook": {
+    "otherDays": "Otros días",
+    "bestMoment": "El mejor momento para esta ruta en la previsión es el <b>{day} a las {hour}</b>: {duration} con {toll} min de peaje.",
+    "bestAt": "mejor {hour} · {toll} min",
+    "hourTooltip": "{hour} · {duration} · {toll} min de peaje",
+    "legend": "Cada barra es una hora de salida entre las 6 y las 21. Verde, el aire te va a costar poco; rojo, prepárate. El recuadro blanco es el mejor momento de toda la previsión."
+  },
+  "SavedRoutes": {
+    "title": "Mis rutas ({count})",
+    "empty": "Todavía no has guardado ninguna. Traza o importa una y dale a «Guardar ruta».",
+    "imported": "importada",
+    "planned": "trazada",
+    "delete": "Borrar {name}",
+    "notifyOn": "Quitar aviso de viento para {name}",
+    "notifyOff": "Avisar por correo cuando haga buen viento en {name}",
+    "notifyTitle": "Avisar por correo cuando haya buen viento"
+  },
+  "Privacy": {
+    "pageTitle": "Privacidad · Ondivento",
+    "back": "← Volver al mapa",
+    "title": "Privacidad",
+    "updated": "Última actualización: agosto de 2026.",
+    "whoTitle": "Quién trata los datos",
+    "whoBody": "Ondivento es un proyecto personal de Daniel Paniagua. Para cualquier duda o para ejercer tus derechos sobre tus datos, escribe a <mail></mail>.",
+    "noAccountTitle": "Planificar una ruta no pide ni guarda tu identidad",
+    "noAccountBody": "Esto es lo primero porque es lo que de verdad importa: puedes trazar rutas, ver el pronóstico y exportar el GPX <b>sin crear cuenta</b>. El punto de salida, la distancia y las coordenadas de la ruta se mandan a nuestro servidor solo para calcular el trazado y se reenvían a los proveedores de mapas y meteorología de abajo — no se guardan en ninguna base de datos ligados a ti. Tu perfil de ciclista (altura, peso, FTP, bici) se queda guardado en tu propio navegador, no en nuestros servidores, salvo que decidas crear cuenta.",
+    "accountTitle": "Si creas una cuenta",
+    "accountIntro": "La cuenta es opcional y sirve para llevar tu perfil, tus bicis y tus rutas de un dispositivo a otro. Al crearla guardamos:",
+    "accountIdentity": "<b>Identidad básica</b>: tu correo, y si entras con Google, tu nombre y foto de perfil tal como te los pasa Google. Si entras por enlace de correo, solo tu dirección.",
+    "accountProfile": "<b>Perfil de ciclista</b>: altura, peso, FTP y factor de intensidad.",
+    "accountBikes": "<b>Bicis</b>: nombre y componentes (cuadro, ruedas, neumáticos...) para calcular su aerodinámica. Nada de esto identifica a nadie por sí solo.",
+    "accountRoutes": "<b>Rutas guardadas</b>: nombre, distancia y las coordenadas del trazado.",
+    "accountAlerts": "<b>Avisos de viento</b>: si activas el aviso de una ruta, guardamos que lo quieres, cuándo se te avisó por última vez (para no repetir) y el idioma en el que usabas la app, para escribirte en él.",
+    "accountDelete": "Puedes borrar cada bici o cada ruta individualmente desde la propia app, y apagar los avisos desde «Mis rutas». Para borrar la cuenta entera, escribe a <mail></mail> — todavía no hay un botón de autoservicio para eso.",
+    "thirdTitle": "Qué reciben terceros, y por qué",
+    "thirdIntro": "Ondivento no existe sin apoyarse en servicios externos. Cada uno recibe solo lo que necesita para hacer su parte:",
+    "thirdGeo": "<b>Open-Meteo, OpenRouteService, BRouter y OSRM</b> reciben coordenadas para calcular el viento y la ruta — nunca tu identidad, ni aunque tengas cuenta.",
+    "thirdGoogle": "<b>Google</b>, si eliges entrar con esa opción, para confirmar quién eres.",
+    "thirdResend": "<b>Resend</b> para mandar el enlace de acceso y, si los activas, los avisos de viento.",
+    "thirdCarto": "<b>CARTO</b> sirve las teselas del mapa; recibe las coordenadas que se ven en pantalla, como cualquier mapa web.",
+    "thirdVercel": "<b>Vercel</b> aloja la aplicación y, como cualquier servidor, ve la IP de quien la usa en sus registros técnicos de acceso. También recoge estadísticas de uso agregadas y anónimas.",
+    "cookiesTitle": "Cookies",
+    "cookiesBody": "Solo las estrictamente funcionales: la de <b>sesión</b>, para mantenerte dentro si tienes cuenta, y la de <b>idioma</b>, para recordar si prefieres español o inglés. Nada de publicidad ni de rastreo entre webs.",
+    "rightsTitle": "Tus derechos",
+    "rightsBody": "Acceso, rectificación, portabilidad y supresión de tus datos, conforme al RGPD. Escribe a <mail></mail> y se atiende directamente, sin intermediarios — esto es un proyecto de una persona, no de una empresa con departamento de soporte."
+  },
+  "Terms": {
+    "pageTitle": "Términos · Ondivento",
+    "back": "← Volver al mapa",
+    "title": "Términos de uso",
+    "updated": "Última actualización: agosto de 2026.",
+    "intro": "Ondivento es un proyecto personal, gratuito, hecho por una sola persona. Estos términos son cortos a propósito.",
+    "estimateTitle": "Es una estimación, no una promesa",
+    "estimateBody": "Los tiempos, el viento y el estado del firme salen de modelos y de previsión meteorológica — nunca de una medición en el momento. La previsión a tres días es orientativa; más allá, es aún menos fiable. El reparto de firme depende de lo que OpenStreetMap tenga etiquetado en cada tramo, que no siempre está completo ni actualizado. <b>Usa tu propio criterio en la carretera</b>: las condiciones reales, el tráfico y tu estado físico mandan siempre por encima de lo que diga la app.",
+    "availabilityTitle": "Disponibilidad",
+    "availabilityBody": "Se apoya en servicios externos gratuitos (OpenRouteService, BRouter, OSRM, Open-Meteo) que tienen sus propios límites y cortes. La app intenta pasar de uno a otro cuando falla alguno, pero no se garantiza que el servicio esté disponible en todo momento.",
+    "accountTitle": "Tu cuenta, si la creas",
+    "accountBody": "Es gratuita y opcional. Puedes dejar de usarla cuando quieras y pedir que se borren tus datos escribiendo a <mail>privacidad@ondivento.com</mail>. Más detalle de qué se guarda y por qué, en la <privacy>página de privacidad</privacy>.",
+    "fairUseTitle": "Uso razonable",
+    "fairUseBody": "La planificación de rutas depende de un cupo compartido con servicios externos gratuitos. Pedimos no automatizar peticiones masivas contra la aplicación — hay un límite técnico que corta el abuso, pero preferimos no necesitarlo.",
+    "changesTitle": "Cambios",
+    "changesBody": "Si algo cambia de forma relevante en cómo se tratan los datos, se actualizará esta página y la de privacidad, con la fecha arriba."
+  },
+  "Server": {
+    "noOrsKey": "Sin clave de OpenRouteService: se enruta con servidores públicos gratuitos. Funciona bien, pero no informa del reparto de firme y puede saturarse en horas punta.",
+    "noPavedLoop": "Desde ahí no sale ningún bucle de esa distancia sin pisar algo de camino: el mejor lleva un {pct}% sin asfaltar.",
+    "noElevation": "Sin datos de altimetría: los tiempos ignoran las cuestas.",
+    "headingOut": "Salida hacia {dir} ({deg}°)",
+    "loop": "Bucle",
+    "variantOneSide": "Variante por un lado",
+    "variantOtherSide": "Variante por el otro lado",
+    "reversed": "{name} (sentido inverso)",
+    "myRoute": "Mi ruta",
+    "importedRoute": "ruta importada",
+    "route": "Ruta",
+    "tooManyPlans": "Demasiadas rutas seguidas. Espera un poco antes de volver a trazar.",
+    "tooManySearches": "Demasiadas búsquedas seguidas.",
+    "missingStart": "Falta el punto de salida",
+    "missingEnd": "Una ruta lineal necesita punto de llegada",
+    "badDistance": "La distancia debe estar entre 5 y 400 km",
+    "routersSlow": "Los servidores de rutas están tardando demasiado. Prueba otra vez, o con menos distancia.",
+    "analyzeSlow": "El análisis ha tardado demasiado. Prueba con una ruta más corta.",
+    "needTwoPoints": "La ruta necesita al menos dos puntos",
+    "tooManyPoints": "La ruta tiene demasiados puntos",
+    "badCoords": "Las coordenadas no son válidas",
+    "mustSignIn": "Hay que entrar primero",
+    "notFound": "No existe",
+    "routeNoGeometry": "La ruta no tiene geometría",
+    "tooManyRoutes": "Ya tienes 200 rutas guardadas. Borra alguna antes.",
+    "missingId": "Falta el id",
+    "missingNotify": "Falta el valor de aviso",
+    "bikeNeedsName": "La bici necesita un nombre",
+    "tooManyBikes": "Ya tienes 12 bicis guardadas",
+    "couldNotSave": "No se ha podido guardar",
+    "weatherRateLimited": "El servicio de meteorología está limitando las peticiones. Espera un minuto y vuelve a intentarlo."
+  },
+  "Email": {
+    "subject": "Hoy toca buen viento para «{route}»",
+    "intro": "Hoy toca buen viento para <b>{route}</b>.",
+    "body": "Sale a cuenta salir sobre las <b>{hour}</b>: el aire te ahorra unos {minutes} minutos frente a un día en calma.",
+    "cta": "Ver en Ondivento",
+    "why": "Recibes esto porque activaste el aviso para esta ruta. Se apaga desde «Mis rutas» en la app."
+  },
+  "Planner": {
+    "tagline": "Rutas trazadas según sopla, hora a hora.",
+    "data": "datos",
+    "windOnRoute": "Viento en ruta",
+    "legendTail": "a favor",
+    "legendHead": "de cara",
+    "windArrows": "Flechas de viento",
+    "altRoutes": "Rutas alternativas",
+    "toggleTheme": "Cambiar entre mapa claro y oscuro",
+    "wind": "Viento",
+    "alternatives": "Alternativas",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "collapsePanel": "Contraer panel",
+    "expandPanel": "Expandir panel",
+    "tabSettings": "Ajustes",
+    "tabResult": "Resultado",
+    "shapeLoop": "Circular",
+    "shapeMine": "Mi ruta",
+    "startLabel": "Salida",
+    "startPlaceholder": "Villalón de Campos, Medina de Rioseco…",
+    "useMyLocation": "usar mi ubicación",
+    "endLabel": "Llegada",
+    "endPlaceholder": "¿A dónde vas?",
+    "distance": "Distancia",
+    "whereLabel": "Por dónde",
+    "surface": {
+      "carretera": {
+        "label": "Carretera",
+        "hint": "asfalto, bici de ruta"
+      },
+      "mixto": {
+        "label": "Mixto",
+        "hint": "asfalto y pistas"
+      },
+      "camino": {
+        "label": "Camino",
+        "hint": "gravel y tierra"
+      }
+    },
+    "preferLabel": "Qué prefieres",
+    "mode": {
+      "tailwind_home": {
+        "label": "Volver a favor",
+        "hint": "el regalo, al final"
+      },
+      "hard_first": {
+        "label": "El palo primero",
+        "hint": "de cara al salir, a favor al volver"
+      },
+      "min_effort": {
+        "label": "Menos esfuerzo",
+        "hint": "minimiza el viento en toda la ruta"
+      }
+    },
+    "departure": "Salida",
+    "flex": "Margen",
+    "riderProfile": "Perfil de ciclista",
+    "busyAnalyzing": "Mirando el aire…",
+    "busyPlanning": "Buscando por dónde…",
+    "analyzeMyRoute": "Analizar mi ruta",
+    "planRoute": "Trazar ruta",
+    "routerBusy": "El servidor de rutas está saturado. Prueba otra vez en un minuto, o configura una clave gratuita de <a>OpenRouteService</a> para tener cupo propio.",
+    "savedRouteName": "{km} km desde {from}",
+    "here": "aquí",
+    "privacy": "Privacidad",
+    "terms": "Términos",
+    "windFrom": "Viento del {dir} · {kmh} km/h",
+    "gusts": "rachas {kmh} km/h · {name} (fuerza {force})",
+    "verdict": "Viento del {dir}: {out} {home}.",
+    "verdictOut": {
+      "outHead": "sales con el aire de cara",
+      "outTail": "sales empujado",
+      "outCross": "sales con el aire de lado"
+    },
+    "verdictHome": {
+      "homeTail": "y vuelves con él a favor",
+      "homeHead": "y la vuelta también es de cara",
+      "homeCross": "y vuelves con el aire cruzado"
+    },
+    "intensityWarning": "Un IF de {intensity} durante {hours} h es de récord. Para esa duración lo sostenible ronda {ceiling}.",
+    "warnGusts": "Rachas de hasta {kmh} km/h durante la ruta.",
+    "warnRain": "Hasta un {pct}% de probabilidad de lluvia por el camino.",
+    "statDistance": "Distancia",
+    "statTime": "Tiempo",
+    "statToll": "Peaje del aire",
+    "vsCalm": "frente a calma",
+    "statTailwind": "A favor",
+    "statHeadwind": "De cara",
+    "statLastKm": "Últimos km",
+    "kmhTail": "km/h a favor",
+    "kmhHead": "km/h en contra",
+    "surfaceLabel": "Firme",
+    "allPaved": "todo asfalto",
+    "pctUnpaved": "{pct}% sin asfaltar",
+    "unpavedNote": "{km} km de camino confirmado. El resto es asfalto o vía sin etiquetar en OpenStreetMap.",
+    "otherOptions": "Otras opciones",
+    "candidateReturn": "vuelta {kmh} km/h {dir}",
+    "downloadGPX": "Descargar GPX",
+    "copied": "¡Copiado!",
+    "copyLink": "Copiar enlace",
+    "saving": "Guardando…",
+    "saved": "Guardada en tu cuenta",
+    "saveRoute": "Guardar ruta",
+    "howTitle": "Cómo se ha calculado",
+    "howRouting": "Se han trazado {calls} rutas candidatas con {profile} y se ha simulado cada una tramo a tramo, consultando la previsión en el instante en el que pasarías por cada punto (no la de la salida).",
+    "howPhysics": "El viento a 10 m se reduce a la altura del ciclista y se descompone en componente frontal y lateral; la velocidad sale de resolver el balance de potencia ({w} W, CdA {cda}, Crr {crr}, {kg} kg).",
+    "howDensity": "Densidad del aire media en ruta <n>{rho} kg/m³</n> ({tempC} °C, {hpa} hPa, {rh}% de humedad). Frente a los 1,225 estándar a nivel del mar, aquí el aire pesa un {pct}% {cmp}.",
+    "less": "menos",
+    "more": "más",
+    "howDraft": "Rebufo: vas tapado el {frac}% del tiempo con un ahorro del {saving}%, y el beneficio se degrada tramo a tramo según lo angulado que entre el aire."
+  },
+  "Rider": {
+    "title": "Perfil de ciclista",
+    "subtitle": "Cuanto mejor lo afines, más se parecerán los tiempos a los tuyos.",
+    "close": "Cerrar",
+    "reset": "Reiniciar",
+    "done": "Listo",
+    "you": "Tú",
+    "height": "Altura",
+    "weight": "Peso",
+    "bike": "Bici",
+    "luggage": "Equipaje",
+    "bsaExplainer": "Con la altura y el peso se calcula tu superficie corporal (Du Bois) y de ahí el área que le ofreces al aire: <n>{bsa} m²</n> de superficie, <n>{body} m²</n> de CdA de cuerpo.",
+    "position": "Postura habitual",
+    "engine": "Motor",
+    "targetPower": "Potencia objetivo",
+    "intensityFactor": "Factor de intensidad",
+    "ifCruise": "paseo",
+    "ifEndurance": "fondo",
+    "ifTempo": "tempo",
+    "ifThreshold": "umbral",
+    "intensityExplainer": "Qué fracción de tu FTP piensas sostener de media. Para una salida larga lo normal es 0,65–0,75; por encima de 0,85 solo se aguanta una hora o dos.",
+    "gear": "Material",
+    "frame": "Cuadro",
+    "wheels": "Ruedas",
+    "tyres": "Neumáticos",
+    "clothing": "Ropa",
+    "helmet": "Casco",
+    "summary": "Lo que sale de todo esto",
+    "body": "Cuerpo"
+  },
+  "Equipment": {
+    "positions": {
+      "tops": {
+        "label": "Manos arriba",
+        "note": "erguido, paseo o subiendo"
+      },
+      "hoods": {
+        "label": "En las manetas",
+        "note": "la postura normal de ruta"
+      },
+      "drops": {
+        "label": "Manillar bajo",
+        "note": "agachado, tirando"
+      },
+      "aero": {
+        "label": "Acoples / crono",
+        "note": "posición de contrarreloj"
+      }
+    },
+    "frames": {
+      "tt": {
+        "label": "Cabra / contrarreloj",
+        "note": "cuadro de crono"
+      },
+      "aero-top": {
+        "label": "Aero de gama alta",
+        "note": "Cervélo S5, Canyon Aeroad CFR, Giant Propel, Scott Foil RC, Pinarello Dogma F, Ridley Noah Fast, Bianchi Oltre"
+      },
+      "aero-allround": {
+        "label": "All-round moderno",
+        "note": "Tarmac SL8, Trek Madone/Émonda, Factor Ostro VAM, BMC Teammachine R, Cervélo Soloist, Orbea Orca Aero, SuperSix Evo"
+      },
+      "classic": {
+        "label": "Carretera clásica",
+        "note": "tubos redondos, cables por fuera, acero o alu"
+      },
+      "endurance": {
+        "label": "Endurance / gran fondo",
+        "note": "Roubaix, Domane, Defy, Synapse"
+      },
+      "gravel": {
+        "label": "Gravel",
+        "note": "manillar flare y cubiertas anchas"
+      },
+      "mtb": {
+        "label": "MTB",
+        "note": "manillar recto y ruedas de tacos"
+      },
+      "city": {
+        "label": "Urbana / híbrida",
+        "note": "postura erguida, guardabarros"
+      }
+    },
+    "wheels": {
+      "disc": {
+        "label": "Lenticular + 60 mm",
+        "note": "solo para crono"
+      },
+      "d80": {
+        "label": "80 mm y más",
+        "note": "Zipp 858/808, Princeton Blur 633"
+      },
+      "d60": {
+        "label": "58-65 mm",
+        "note": "Zipp 404, Enve SES 6.7, Roval Rapide CLX II, DT Swiss ARC 1100 62, Dura-Ace C60, Bora WTO 60, Hunt 54/58"
+      },
+      "d45": {
+        "label": "45-55 mm",
+        "note": "Enve SES 4.5, DT Swiss ARC 1100 50, Dura-Ace C50, Bora WTO 45, Vision Metron 45, Mavic Cosmic SL 45"
+      },
+      "d35": {
+        "label": "32-42 mm",
+        "note": "Zipp 303 Firecrest, Enve SES 3.4, Roval Alpinist CLX, Dura-Ace C36"
+      },
+      "d25": {
+        "label": "Caja baja de carbono",
+        "note": "perfil bajo, para montaña"
+      },
+      "alu": {
+        "label": "Aluminio de caja baja",
+        "note": "Mavic Ksyrium, Shimano RS, ruedas de serie"
+      },
+      "gravel": {
+        "label": "Gravel 40 mm",
+        "note": "llanta ancha con cubierta de 40-45 mm"
+      },
+      "mtb": {
+        "label": "MTB 29\"",
+        "note": "tacos"
+      }
+    },
+    "tyres": {
+      "race-tl": {
+        "label": "Competición tubeless 25-28",
+        "note": "GP5000 S TR, Corsa Pro TLR, Turbo Cotton"
+      },
+      "race": {
+        "label": "Carretera rápida 25-28",
+        "note": "GP5000 con cámara, Corsa N.EXT"
+      },
+      "training": {
+        "label": "Entreno / antipinchazos",
+        "note": "GP4-Season, Gatorskin, Marathon"
+      },
+      "gravel-fast": {
+        "label": "Gravel liso 35-40",
+        "note": "Pathfinder, Terra Speed"
+      },
+      "gravel-knob": {
+        "label": "Gravel tacos 40-45",
+        "note": "Terra Trail, Riddler"
+      },
+      "mtb": {
+        "label": "MTB"
+      }
+    },
+    "clothing": {
+      "skinsuit": {
+        "label": "Mono aero"
+      },
+      "tight": {
+        "label": "Maillot ajustado"
+      },
+      "loose": {
+        "label": "Maillot holgado"
+      },
+      "jacket": {
+        "label": "Chaqueta o cortavientos"
+      }
+    },
+    "helmets": {
+      "tt": {
+        "label": "Casco de crono"
+      },
+      "aero": {
+        "label": "Casco aero"
+      },
+      "road": {
+        "label": "Casco normal"
+      },
+      "none": {
+        "label": "Sin casco"
+      }
+    },
+    "luggage": {
+      "none": {
+        "label": "Nada"
+      },
+      "small": {
+        "label": "Bolsa de sillín"
+      },
+      "bikepacking": {
+        "label": "Bikepacking"
+      },
+      "panniers": {
+        "label": "Alforjas"
+      }
+    }
+  },
+  "Install": {
+    "ios": "Para tenerla como app: <b>Compartir</b> → <b>Añadir a pantalla de inicio</b>.",
+    "android": "Instálala y la tienes como app, sin barra del navegador y abriendo sin cobertura.",
+    "install": "Instalar",
+    "dismiss": "No instalar"
+  },
+  "Import": {
+    "yourRoute": "Tu ruta",
+    "defaultName": "Mi ruta",
+    "points": "{n} puntos",
+    "withElevation": "con altimetría",
+    "withoutElevation": "sin altimetría",
+    "remove": "Quitar",
+    "dropHere": "Suelta aquí tu GPX",
+    "orTap": "o toca para buscarlo · GPX, TCX o KML",
+    "blurb": "Exporta la ruta de Strava, Komoot o Garmin y te digo a qué hora hacerla y en qué sentido. El fichero se lee en tu navegador; al servidor solo van las coordenadas.",
+    "unreadable": "No se ha podido leer el fichero.",
+    "notXml": "El fichero no es XML válido.",
+    "noTrack": "No he encontrado ninguna traza dentro. Sirven GPX, TCX y KML con puntos de ruta.",
+    "tooBig": "El fichero pesa más de 25 MB."
+  },
+  "Footer": {
+    "privacy": "Privacidad",
+    "terms": "Términos"
+  },
+  "SignIn": {
+    "pageTitle": "Entrar · Ondivento",
+    "backToMap": "← Volver al mapa",
+    "heading": "Entrar",
+    "blurb": "Para llevar tu perfil, tus bicis y tus rutas de un dispositivo a otro. Planificar funciona igual sin cuenta.",
+    "checkEmail": "Te he mandado un enlace. Ábrelo desde este mismo dispositivo.",
+    "error": "No ha podido ser. Inténtalo otra vez.",
+    "notConfigured": "Las cuentas todavía no están configuradas en este despliegue. Hace falta una base de datos y un proveedor de acceso; está todo escrito y esperando las variables de entorno.",
+    "withGoogle": "Entrar con Google",
+    "or": "o",
+    "yourEmail": "Tu correo",
+    "emailPlaceholder": "tu@correo.es",
+    "sendLink": "Mandarme un enlace",
+    "noPassword": "Sin contraseña: recibes un enlace y con eso entras.",
+    "legal": "Al entrar aceptas los <terms>términos</terms> y la <privacy>privacidad</privacy>."
+  },
+  "Place": {
+    "tapMap": "toca el mapa…",
+    "markOnMap": "marcar en el mapa"
+  },
+  "Profile": {
+    "speed": "velocidad",
+    "elevation": "relieve"
+  }
+}

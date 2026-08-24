@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import PlaceInput from "./PlaceInput";
 import WindRose from "./WindRose";
 import RouteProfile from "./RouteProfile";
@@ -13,6 +15,7 @@ import TrackImport from "./TrackImport";
 import AccountBar, { useCuenta } from "./AccountBar";
 import SavedRoutes from "./SavedRoutes";
 import InstalarApp from "./PWA";
+import LocaleSwitch from "./LocaleSwitch";
 import { downloadGPX } from "@/lib/gpx";
 import type { ImportedTrack } from "@/lib/gpxImport";
 import {
@@ -51,17 +54,8 @@ const MapView = dynamic(() => import("./MapView"), {
   loading: () => <div className="absolute inset-0 bg-[#080b11]" />,
 });
 
-const SURFACES: { id: Surface; label: string; hint: string }[] = [
-  { id: "carretera", label: "Carretera", hint: "asfalto, bici de ruta" },
-  { id: "mixto", label: "Mixto", hint: "asfalto y pistas" },
-  { id: "camino", label: "Camino", hint: "gravel y tierra" },
-];
-
-const MODES: { id: WindMode; label: string; hint: string }[] = [
-  { id: "tailwind_home", label: "Volver a favor", hint: "el regalo, al final" },
-  { id: "hard_first", label: "El palo primero", hint: "de cara al salir, a favor al volver" },
-  { id: "min_effort", label: "Menos esfuerzo", hint: "minimiza el viento en toda la ruta" },
-];
+const SURFACES: Surface[] = ["carretera", "mixto", "camino"];
+const MODES: WindMode[] = ["tailwind_home", "hard_first", "min_effort"];
 
 const SETUP_KEY = "vdc.rider.v1";
 const GROUP_KEY = "vdc.group.v1";
@@ -72,6 +66,8 @@ function localInputValue(d: Date): string {
 }
 
 export default function Planner() {
+  const t = useTranslations("Planner");
+  const locale = useLocale();
   const [startText, setStartText] = useState("");
   const [start, setStart] = useState<LonLat | null>(null);
   const [endText, setEndText] = useState("");
@@ -234,9 +230,9 @@ export default function Planner() {
     const d = Number(q.get("d"));
     if (Number.isFinite(d) && d >= 5 && d <= 400) setDistanceKm(d);
     const sf = q.get("sf") as Surface | null;
-    if (sf && SURFACES.some((x) => x.id === sf)) setSurface(sf);
+    if (sf && SURFACES.includes(sf)) setSurface(sf);
     const wm = q.get("m") as WindMode | null;
-    if (wm && MODES.some((x) => x.id === wm)) setWindMode(wm);
+    if (wm && MODES.includes(wm)) setWindMode(wm);
   }, []);
 
   const shareUrl = useMemo(() => {
@@ -300,6 +296,7 @@ export default function Planner() {
                   flexHours: overrideDepartureMs != null ? 0 : flexHours,
                   tzOffsetMinutes: -new Date().getTimezoneOffset(),
                   rider: riderPayload,
+                  locale,
                 }
               : {
                   start,
@@ -312,6 +309,7 @@ export default function Planner() {
                   flexHours: overrideDepartureMs != null ? 0 : flexHours,
                   tzOffsetMinutes: -new Date().getTimezoneOffset(),
                   rider: riderPayload,
+                  locale,
                 }
           ),
         });
@@ -347,7 +345,7 @@ export default function Planner() {
         setBusy(false);
       }
     },
-    [start, end, shape, distanceKm, surface, windMode, departure, flexHours, riderPayload, track]
+    [start, end, shape, distanceKm, surface, windMode, departure, flexHours, riderPayload, track, locale]
   );
 
   const onPick = useCallback(
@@ -401,12 +399,12 @@ export default function Planner() {
         En escritorio se despliega la leyenda completa abajo a la derecha.
       */}
       <div className="glass absolute left-2 top-2 z-10 rounded-xl p-1.5 md:bottom-6 md:left-auto md:right-3 md:top-auto md:px-3 md:py-2">
-        <div className="label mb-1.5 hidden md:block">Viento en ruta</div>
+        <div className="label mb-1.5 hidden md:block">{t("windOnRoute")}</div>
         <div className="hidden md:block">
           <span className="block h-1.5 w-24 rounded-full bg-gradient-to-r from-[#34d399] via-[#facc15] to-[#ef4444]" />
           <div className="mt-1 flex justify-between text-[0.62rem] text-[var(--color-faint)]">
-            <span>a favor</span>
-            <span>de cara</span>
+            <span>{t("legendTail")}</span>
+            <span>{t("legendHead")}</span>
           </div>
         </div>
 
@@ -415,21 +413,21 @@ export default function Planner() {
           <IconToggle
             on={showArrows}
             onClick={() => setShowArrows((v) => !v)}
-            label="Flechas de viento"
+            label={t("windArrows")}
           >
             <path d="M12 3 7 21l5-4 5 4-5-18Z" />
           </IconToggle>
           <IconToggle
             on={showAlts}
             onClick={() => setShowAlts((v) => !v)}
-            label="Rutas alternativas"
+            label={t("altRoutes")}
           >
             <path d="M4 20 20 4M4 12h6M14 20h6" strokeDasharray="3 3" />
           </IconToggle>
           <IconToggle
             on={mapTheme === "light"}
             onClick={() => setMapTheme(mapTheme === "light" ? "dark" : "light")}
-            label="Cambiar entre mapa claro y oscuro"
+            label={t("toggleTheme")}
           >
             <circle cx="12" cy="12" r="4" />
             <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
@@ -437,8 +435,8 @@ export default function Planner() {
         </div>
 
         <div className="mt-2 hidden flex-col gap-1 text-[0.68rem] md:flex">
-          <Toggle on={showArrows} onChange={setShowArrows} label="Viento" />
-          <Toggle on={showAlts} onChange={setShowAlts} label="Alternativas" />
+          <Toggle on={showArrows} onChange={setShowArrows} label={t("wind")} />
+          <Toggle on={showAlts} onChange={setShowAlts} label={t("alternatives")} />
         </div>
         {/*
           El envoltorio no es decorativo: `.seg` declara `display: grid` y en la
@@ -449,10 +447,10 @@ export default function Planner() {
         <div className="hidden md:block">
           <div className="seg mt-2 grid-cols-2">
             <button data-on={mapTheme === "dark"} onClick={() => setMapTheme("dark")}>
-              Oscuro
+              {t("dark")}
             </button>
             <button data-on={mapTheme === "light"} onClick={() => setMapTheme("light")}>
-              Claro
+              {t("light")}
             </button>
           </div>
         </div>
@@ -480,7 +478,7 @@ export default function Planner() {
           onClick={() => setSheetOpen((v) => !v)}
           className="sticky top-0 z-10 flex min-h-11 w-full items-center justify-center md:hidden"
           style={{ background: "linear-gradient(180deg,rgba(20,26,38,.97),rgba(20,26,38,0))" }}
-          aria-label={sheetOpen ? "Contraer panel" : "Expandir panel"}
+          aria-label={sheetOpen ? t("collapsePanel") : t("expandPanel")}
           aria-expanded={sheetOpen}
         >
           <span className="h-1 w-10 rounded-full bg-white/25" />
@@ -505,7 +503,7 @@ export default function Planner() {
                   result ? "hidden md:block" : ""
                 }`}
               >
-                Rutas trazadas según sopla, hora a hora.
+                {t("tagline")}
               </p>
             </div>
             <a
@@ -514,7 +512,7 @@ export default function Planner() {
               rel="noreferrer noopener"
               className="-mr-2 inline-flex min-h-11 shrink-0 items-center px-2 text-[0.66rem] text-[var(--color-faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--color-muted)] md:mr-0 md:min-h-0 md:px-0"
             >
-              datos
+              {t("data")}
             </a>
           </header>
 
@@ -526,13 +524,13 @@ export default function Planner() {
                   data-on={movilPestana === "ajustes"}
                   onClick={() => setMovilPestana("ajustes")}
                 >
-                  Ajustes
+                  {t("tabSettings")}
                 </button>
                 <button
                   data-on={movilPestana === "resultado"}
                   onClick={() => setMovilPestana("resultado")}
                 >
-                  Resultado
+                  {t("tabResult")}
                 </button>
               </div>
             </div>
@@ -556,7 +554,11 @@ export default function Planner() {
             <div className="seg grid-cols-3">
               {(["circular", "lineal", "importada"] as Shape[]).map((s) => (
                 <button key={s} data-on={shape === s} onClick={() => setShape(s)}>
-                  {s === "circular" ? "Circular" : s === "lineal" ? "A → B" : "Mi ruta"}
+                  {s === "circular"
+                    ? t("shapeLoop")
+                    : s === "lineal"
+                      ? "A → B"
+                      : t("shapeMine")}
                 </button>
               ))}
             </div>
@@ -569,8 +571,8 @@ export default function Planner() {
 
             {shape !== "importada" && (
             <PlaceInput
-              label="Salida"
-              placeholder="Villalón de Campos, Medina de Rioseco…"
+              label={t("startLabel")}
+              placeholder={t("startPlaceholder")}
               value={start}
               text={startText}
               onChange={(t, p) => {
@@ -588,15 +590,15 @@ export default function Planner() {
               onClick={useMyLocation}
               className="-mt-1 inline-flex min-h-11 items-center text-[0.72rem] font-semibold text-[var(--color-faint)] transition-colors hover:text-[var(--color-accent)] md:min-h-0"
             >
-              usar mi ubicación
+              {t("useMyLocation")}
             </button>
             )}
 
             {shape === "lineal" && (
               <div className="rise">
                 <PlaceInput
-                  label="Llegada"
-                  placeholder="¿A dónde vas?"
+                  label={t("endLabel")}
+                  placeholder={t("endPlaceholder")}
                   value={end}
                   text={endText}
                   onChange={(t, p) => {
@@ -616,7 +618,7 @@ export default function Planner() {
           {shape === "circular" && (
             <div className={ocultaEnMovil}>
               <div className="mb-1.5 flex items-baseline justify-between">
-                <span className="label">Distancia</span>
+                <span className="label">{t("distance")}</span>
                 <span className="num text-sm font-bold text-[var(--color-accent)]">
                   {distanceKm} km
                 </span>
@@ -645,16 +647,16 @@ export default function Planner() {
 
           {/* --- firme --- */}
           <div className={shape === "importada" ? "hidden" : ocultaEnMovil}>
-            <div className="label mb-1.5">Por dónde</div>
+            <div className="label mb-1.5">{t("whereLabel")}</div>
             <div className="seg grid-cols-3">
               {SURFACES.map((s) => (
                 <button
-                  key={s.id}
-                  data-on={surface === s.id}
-                  onClick={() => setSurface(s.id)}
-                  title={s.hint}
+                  key={s}
+                  data-on={surface === s}
+                  onClick={() => setSurface(s)}
+                  title={t(`surface.${s}.hint`)}
                 >
-                  {s.label}
+                  {t(`surface.${s}.label`)}
                 </button>
               ))}
             </div>
@@ -662,17 +664,19 @@ export default function Planner() {
 
           {/* --- estrategia de viento --- */}
           <div className={shape === "importada" ? "hidden" : ocultaEnMovil}>
-            <div className="label mb-1.5">Qué prefieres</div>
+            <div className="label mb-1.5">{t("preferLabel")}</div>
             <div className="seg">
               {MODES.map((m) => (
                 <button
-                  key={m.id}
-                  data-on={windMode === m.id}
-                  onClick={() => setWindMode(m.id)}
+                  key={m}
+                  data-on={windMode === m}
+                  onClick={() => setWindMode(m)}
                   className="flex flex-col items-start gap-0.5 !px-2.5 !py-2 text-left"
                 >
-                  <span className="text-[0.82rem]">{m.label}</span>
-                  <span className="text-[0.66rem] font-normal opacity-70">{m.hint}</span>
+                  <span className="text-[0.82rem]">{t(`mode.${m}.label`)}</span>
+                  <span className="text-[0.66rem] font-normal opacity-70">
+                    {t(`mode.${m}.hint`)}
+                  </span>
                 </button>
               ))}
             </div>
@@ -681,7 +685,7 @@ export default function Planner() {
           {/* --- cuándo --- */}
           <div className={`grid grid-cols-[1fr_auto] gap-2 ${ocultaEnMovil}`}>
             <div>
-              <div className="label mb-1.5">Salida</div>
+              <div className="label mb-1.5">{t("departure")}</div>
               <input
                 type="datetime-local"
                 className="field num"
@@ -690,7 +694,7 @@ export default function Planner() {
               />
             </div>
             <div>
-              <div className="label mb-1.5">Margen</div>
+              <div className="label mb-1.5">{t("flex")}</div>
               <select
                 className="field num"
                 value={flexHours}
@@ -725,7 +729,7 @@ export default function Planner() {
               </svg>
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-[0.8rem] font-semibold">Perfil de ciclista</span>
+              <span className="block text-[0.8rem] font-semibold">{t("riderProfile")}</span>
               <span className="num block truncate text-[0.66rem] text-[var(--color-faint)]">
                 {riderPayload.powerW} W · CdA {riderPayload.cda.toFixed(3)} ·{" "}
                 {riderPayload.massKg.toFixed(0)} kg
@@ -745,12 +749,12 @@ export default function Planner() {
             {busy ? (
               <>
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/25 border-t-black/70" />
-                {shape === "importada" ? "Mirando el aire…" : "Buscando por dónde…"}
+                {shape === "importada" ? t("busyAnalyzing") : t("busyPlanning")}
               </>
             ) : shape === "importada" ? (
-              "Analizar mi ruta"
+              t("analyzeMyRoute")
             ) : (
-              "Trazar ruta"
+              t("planRoute")
             )}
           </button>
           </div>
@@ -764,17 +768,18 @@ export default function Planner() {
               <p>{error}</p>
               {/^(OSRM|ORS)/.test(error) && (
                 <p className="mt-1.5 text-[0.72rem] text-red-200/70">
-                  El servidor de rutas está saturado. Prueba otra vez en un
-                  minuto, o configura una clave gratuita de{" "}
-                  <a
-                    href="https://openrouteservice.org/dev/#/signup"
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="underline underline-offset-2"
-                  >
-                    OpenRouteService
-                  </a>{" "}
-                  para tener cupo propio.
+                  {t.rich("routerBusy", {
+                    a: (chunks) => (
+                      <a
+                        href="https://openrouteservice.org/dev/#/signup"
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="underline underline-offset-2"
+                      >
+                        {chunks}
+                      </a>
+                    ),
+                  })}
                 </p>
               )}
             </div>
@@ -808,13 +813,16 @@ export default function Planner() {
                               name:
                                 shape === "importada" && track
                                   ? track.name
-                                  : `${(shown.geometry.distanceM / 1000).toFixed(0)} km desde ${
-                                      startText || "aquí"
-                                    }`,
+                                  : t("savedRouteName", {
+                                      km: (shown.geometry.distanceM / 1000).toFixed(0),
+                                      from: startText || t("here"),
+                                    }),
                               kind: shape === "importada" ? "imported" : "planned",
                               distanceM: shown.geometry.distanceM,
                               ascentM: shown.geometry.ascentM ?? null,
                               coords: shown.geometry.coords,
+                              surface,
+                              windMode,
                               meta: { surface, windMode },
                             }),
                           });
@@ -829,6 +837,18 @@ export default function Planner() {
               }
             />
           )}
+
+          <div className={`flex justify-center gap-3 pt-1 text-[0.66rem] text-[var(--color-faint)] ${ocultaEnMovil}`}>
+            <Link href="/privacidad" className="hover:text-[var(--color-muted)]">
+              {t("privacy")}
+            </Link>
+            <span aria-hidden>·</span>
+            <Link href="/terminos" className="hover:text-[var(--color-muted)]">
+              {t("terms")}
+            </Link>
+            <span aria-hidden>·</span>
+            <LocaleSwitch />
+          </div>
         </div>
       </div>
 
@@ -944,19 +964,14 @@ function Stat({
   );
 }
 
-function verdict(c: Candidate, windFromDeg: number): string {
+/** Que le espera hoy, en dos mitades: como sale y como vuelve. */
+function verdictKeys(c: Candidate): { out: string; home: string } {
   const out = c.evaluation.outboundTailwind;
   const home = c.evaluation.homeTailwind;
-  const dir = `del ${cardinal(windFromDeg)}`;
-  const salida =
-    out < -1 ? "sales con el aire de cara" : out > 1 ? "sales empujado" : "sales con el aire de lado";
-  const vuelta =
-    home > 1.2
-      ? "y vuelves con él a favor"
-      : home < -1.2
-        ? "y la vuelta también es de cara"
-        : "y vuelves con el aire cruzado";
-  return `Viento ${dir}: ${salida} ${vuelta}.`;
+  return {
+    out: out < -1 ? "outHead" : out > 1 ? "outTail" : "outCross",
+    home: home > 1.2 ? "homeTail" : home < -1.2 ? "homeHead" : "homeCross",
+  };
 }
 
 function Results({
@@ -979,15 +994,19 @@ function Results({
   onPickHour: (iso: string) => void;
   busy: boolean;
   shareUrl: string;
-  intensityWarning: string | null;
+  intensityWarning: ReturnType<typeof intensitySanity>;
   /** Solo con sesion: guardar la ruta en la cuenta. */
   guardar?: { estado: "no" | "si" | "hecho"; onGuardar: () => void };
 }) {
   const [copied, setCopied] = useState(false);
+  const t = useTranslations("Planner");
+  const tWind = useTranslations("Wind");
+  const locale = useLocale();
   const ev = shown.evaluation;
   const w = result.wind.atStart;
   const bf = beaufort(w.speed10);
   const km = shown.geometry.distanceM / 1000;
+  const vk = verdictKeys(shown);
 
   return (
     <div className="rise space-y-3.5 border-t border-white/8 pt-4">
@@ -1000,54 +1019,65 @@ function Results({
         />
         <div className="min-w-0 flex-1">
           <div className="text-[0.68rem] uppercase tracking-wider text-[var(--color-faint)]">
-            {fmtDay(shown.departure)} · {fmtHour(shown.departure)}
+            {fmtDay(shown.departure, locale)} · {fmtHour(shown.departure, locale)}
           </div>
           <div className="mt-0.5 text-[0.82rem] font-semibold leading-snug">
-            Viento del {cardinal(w.fromDeg)} · {(w.speed10 * 3.6).toFixed(0)} km/h
+            {t("windFrom", {
+              dir: cardinal(w.fromDeg, locale),
+              kmh: (w.speed10 * 3.6).toFixed(0),
+            })}
           </div>
           <div className="text-[0.7rem] text-[var(--color-faint)]">
-            rachas {(w.gust * 3.6).toFixed(0)} km/h · {bf.name} (fuerza {bf.n})
+            {t("gusts", {
+              kmh: (w.gust * 3.6).toFixed(0),
+              name: tWind(bf.key),
+              force: bf.n,
+            })}
           </div>
           <p className="mt-2 text-[0.76rem] leading-snug text-[var(--color-muted)]">
-            {verdict(shown, w.fromDeg)}
+            {t("verdict", {
+              dir: cardinal(w.fromDeg, locale),
+              out: t(`verdictOut.${vk.out}`),
+              home: t(`verdictHome.${vk.home}`),
+            })}
           </p>
         </div>
       </div>
 
       {intensityWarning && (
         <p className="rounded-xl border border-amber-400/25 bg-amber-400/8 px-3 py-2 text-[0.74rem] leading-snug text-amber-200/90">
-          {intensityWarning}
+          {t("intensityWarning", intensityWarning)}
         </p>
       )}
 
       {(result.wind.worst.gust * 3.6 > 55 || result.wind.worst.precipProb > 40) && (
         <p className="rounded-xl border border-amber-400/25 bg-amber-400/8 px-3 py-2 text-[0.74rem] leading-snug text-amber-200/90">
           {result.wind.worst.gust * 3.6 > 55 &&
-            `Rachas de hasta ${(result.wind.worst.gust * 3.6).toFixed(0)} km/h durante la ruta. `}
+            t("warnGusts", { kmh: (result.wind.worst.gust * 3.6).toFixed(0) }) + " "}
           {result.wind.worst.precipProb > 40 &&
-            `Hasta un ${Math.round(result.wind.worst.precipProb)}% de probabilidad de lluvia por el camino.`}
+            t("warnRain", { pct: Math.round(result.wind.worst.precipProb) })}
         </p>
       )}
 
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Distancia" value={`${km.toFixed(1)} km`}
+        <Stat label={t("statDistance")} value={`${km.toFixed(1)} km`}
           sub={shown.geometry.ascentM != null ? `+${Math.round(shown.geometry.ascentM)} m` : undefined} />
-        <Stat label="Tiempo" value={fmtDuration(ev.timeS)} sub={`${ev.avgKmh.toFixed(1)} km/h`} />
+        <Stat label={t("statTime")} value={fmtDuration(ev.timeS)} sub={`${ev.avgKmh.toFixed(1)} km/h`} />
         <Stat
-          label="Peaje del aire"
+          label={t("statToll")}
           value={fmtDelta(ev.windCostS)}
-          sub="frente a calma"
+          sub={t("vsCalm")}
           tone={ev.windCostS > 0 ? "bad" : "good"}
         />
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="A favor" value={`${Math.round(ev.tailwindFrac * 100)}%`} tone="good" />
-        <Stat label="De cara" value={`${Math.round(ev.headwindFrac * 100)}%`} tone="bad" />
+        <Stat label={t("statTailwind")} value={`${Math.round(ev.tailwindFrac * 100)}%`} tone="good" />
+        <Stat label={t("statHeadwind")} value={`${Math.round(ev.headwindFrac * 100)}%`} tone="bad" />
         <Stat
-          label="Últimos km"
+          label={t("statLastKm")}
           value={`${(ev.homeTailwind * 3.6).toFixed(0)}`}
-          sub={ev.homeTailwind >= 0 ? "km/h a favor" : "km/h en contra"}
+          sub={ev.homeTailwind >= 0 ? t("kmhTail") : t("kmhHead")}
           tone={ev.homeTailwind >= 0 ? "good" : "bad"}
         />
       </div>
@@ -1055,13 +1085,15 @@ function Results({
       {shown.geometry.unpavedFrac != null && (
         <div className="card px-3 py-2">
           <div className="flex items-baseline justify-between">
-            <span className="label">Firme</span>
+            <span className="label">{t("surfaceLabel")}</span>
             <span className="num text-[0.75rem] text-[var(--color-muted)]">
               {shown.geometry.unpavedFrac < 0.005
-                ? "todo asfalto"
-                : `${(shown.geometry.unpavedFrac * 100).toFixed(
-                    shown.geometry.unpavedFrac < 0.1 ? 1 : 0
-                  )}% sin asfaltar`}
+                ? t("allPaved")
+                : t("pctUnpaved", {
+                    pct: (shown.geometry.unpavedFrac * 100).toFixed(
+                      shown.geometry.unpavedFrac < 0.1 ? 1 : 0
+                    ),
+                  })}
             </span>
           </div>
           <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-white/10">
@@ -1076,12 +1108,12 @@ function Results({
           </div>
           {shown.geometry.unpavedFrac >= 0.005 && (
             <p className="mt-1.5 text-[0.64rem] leading-snug text-[var(--color-faint)]">
-              {(
-                (shown.geometry.unpavedFrac * shown.geometry.distanceM) /
-                1000
-              ).toFixed(1)}{" "}
-              km de camino confirmado. El resto es asfalto o vía sin etiquetar
-              en OpenStreetMap.
+              {t("unpavedNote", {
+                km: (
+                  (shown.geometry.unpavedFrac * shown.geometry.distanceM) /
+                  1000
+                ).toFixed(1),
+              })}
             </p>
           )}
         </div>
@@ -1105,7 +1137,7 @@ function Results({
 
       {candidates.length > 1 && (
         <div>
-          <div className="label mb-1.5">Otras opciones</div>
+          <div className="label mb-1.5">{t("otherOptions")}</div>
           <div className="space-y-1.5">
             {candidates.map((c) => {
               const on = c.id === shown.id;
@@ -1124,7 +1156,7 @@ function Results({
                       className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/10 text-[0.6rem] font-bold"
                       style={{ color: on ? "var(--color-accent)" : "var(--color-muted)" }}
                     >
-                      {cardinal(c.headingDeg)}
+                      {cardinal(c.headingDeg, locale)}
                     </span>
                   )}
                   <span className="min-w-0 flex-1">
@@ -1133,9 +1165,14 @@ function Results({
                     </span>
                     <span className="num block text-[0.66rem] text-[var(--color-faint)]">
                       {(c.geometry.distanceM / 1000).toFixed(1)} km ·{" "}
-                      {fmtDuration(c.evaluation.timeS)} · vuelta{" "}
-                      {(c.evaluation.homeTailwind * 3.6).toFixed(0)} km/h{" "}
-                      {c.evaluation.homeTailwind >= 0 ? "a favor" : "en contra"}
+                      {fmtDuration(c.evaluation.timeS)} ·{" "}
+                      {t("candidateReturn", {
+                        kmh: (c.evaluation.homeTailwind * 3.6).toFixed(0),
+                        dir:
+                          c.evaluation.homeTailwind >= 0
+                            ? tWind("tail")
+                            : tWind("head"),
+                      })}
                     </span>
                   </span>
                 </button>
@@ -1151,11 +1188,11 @@ function Results({
           onClick={() =>
             downloadGPX(
               shown,
-              `viento-${km.toFixed(0)}km-${fmtHour(shown.departure).replace(":", "")}`
+              `ondivento-${km.toFixed(0)}km-${fmtHour(shown.departure, locale).replace(":", "")}`
             )
           }
         >
-          Descargar GPX
+          {t("downloadGPX")}
         </button>
         <button
           className="btn flex-1"
@@ -1169,7 +1206,7 @@ function Results({
             }
           }}
         >
-          {copied ? "¡Copiado!" : "Copiar enlace"}
+          {copied ? t("copied") : t("copyLink")}
         </button>
       </div>
 
@@ -1180,48 +1217,49 @@ function Results({
           onClick={guardar.onGuardar}
         >
           {guardar.estado === "si"
-            ? "Guardando…"
+            ? t("saving")
             : guardar.estado === "hecho"
-              ? "Guardada en tu cuenta"
-              : "Guardar ruta"}
+              ? t("saved")
+              : t("saveRoute")}
         </button>
       )}
 
       <details className="text-[0.68rem] text-[var(--color-faint)]">
         <summary className="cursor-pointer select-none hover:text-[var(--color-muted)]">
-          Cómo se ha calculado
+          {t("howTitle")}
         </summary>
         <div className="mt-2 space-y-1.5 leading-relaxed">
           <p>
-            Se han trazado {result.meta.routingCalls} rutas candidatas con{" "}
-            {result.meta.profile} y se ha simulado cada una tramo a tramo,
-            consultando la previsión en el instante en el que pasarías por cada
-            punto (no la de la salida).
+            {t("howRouting", {
+              calls: result.meta.routingCalls,
+              profile: result.meta.profile,
+            })}
           </p>
           <p>
-            El viento a 10 m se reduce a la altura del ciclista y se descompone en
-            componente frontal y lateral; la velocidad sale de resolver el balance
-            de potencia ({result.meta.rider.powerW} W, CdA{" "}
-            {result.meta.rider.cda.toFixed(3)}, Crr{" "}
-            {result.meta.rider.crr.toFixed(4)}, {result.meta.rider.massKg.toFixed(1)} kg).
+            {t("howPhysics", {
+              w: result.meta.rider.powerW,
+              cda: result.meta.rider.cda.toFixed(3),
+              crr: result.meta.rider.crr.toFixed(4),
+              kg: result.meta.rider.massKg.toFixed(1),
+            })}
           </p>
           <p>
-            Densidad del aire media en ruta{" "}
-            <span className="num">{ev.meanRho.toFixed(3)} kg/m³</span> (
-            {result.wind.atStart.tempC.toFixed(0)} °C,{" "}
-            {result.wind.atStart.pressure.toFixed(0)} hPa,{" "}
-            {result.wind.atStart.humidity.toFixed(0)}% de humedad). Frente a los
-            1,225 estándar a nivel del mar, aquí el aire pesa un{" "}
-            {Math.abs(Math.round((1 - ev.meanRho / 1.225) * 100))}%{" "}
-            {ev.meanRho < 1.225 ? "menos" : "más"}.
+            {t.rich("howDensity", {
+              rho: ev.meanRho.toFixed(3),
+              tempC: result.wind.atStart.tempC.toFixed(0),
+              hpa: result.wind.atStart.pressure.toFixed(0),
+              rh: result.wind.atStart.humidity.toFixed(0),
+              pct: Math.abs(Math.round((1 - ev.meanRho / 1.225) * 100)),
+              cmp: ev.meanRho < 1.225 ? t("less") : t("more"),
+              n: (chunks) => <span className="num">{chunks}</span>,
+            })}
           </p>
           {(result.meta.rider.draftFraction ?? 0) > 0 && (
             <p>
-              Rebufo: vas tapado el{" "}
-              {Math.round((result.meta.rider.draftFraction ?? 0) * 100)}% del tiempo con
-              un ahorro del{" "}
-              {Math.round((1 - (result.meta.rider.draftMultiplier ?? 1)) * 100)}%, y el
-              beneficio se degrada tramo a tramo según lo angulado que entre el aire.
+              {t("howDraft", {
+                frac: Math.round((result.meta.rider.draftFraction ?? 0) * 100),
+                saving: Math.round((1 - (result.meta.rider.draftMultiplier ?? 1)) * 100),
+              })}
             </p>
           )}
           {result.meta.warnings.map((w, i) => (

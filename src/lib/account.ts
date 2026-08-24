@@ -31,6 +31,11 @@ export interface SavedRoute {
   distanceM: number;
   ascentM: number | null;
   createdAt: string;
+  surface: string;
+  windMode: string;
+  /** Si se avisa por correo cuando aparezca una buena ventana de viento. */
+  notify: boolean;
+  notifiedAt: string | null;
   /** Solo al pedir una ruta concreta; en el listado va vacio por tamano. */
   coords?: number[][];
   meta?: Record<string, unknown> | null;
@@ -187,13 +192,17 @@ const routeFromRow = (r: Record<string, unknown>, conCoords: boolean): SavedRout
   distanceM: Number(r.distance_m),
   ascentM: r.ascent_m == null ? null : Number(r.ascent_m),
   createdAt: new Date(r.created_at as string).toISOString(),
+  surface: String(r.surface ?? "carretera"),
+  windMode: String(r.wind_mode ?? "tailwind_home"),
+  notify: Boolean(r.notify),
+  notifiedAt: r.notified_at ? new Date(r.notified_at as string).toISOString() : null,
   ...(conCoords ? { coords: r.coords as number[][], meta: r.meta as never } : {}),
 });
 
 export async function listRoutes(userId: string): Promise<SavedRoute[]> {
   // Sin `coords`: son miles de pares por ruta y el listado no los necesita.
   const rows = await query<Record<string, unknown>>(
-    `select id, name, kind, distance_m, ascent_m, created_at
+    `select id, name, kind, distance_m, ascent_m, created_at, surface, wind_mode, notify, notified_at
        from routes where user_id = $1 order by created_at desc limit 100`,
     [userId]
   );
@@ -216,12 +225,14 @@ export async function saveRoute(
     distanceM: number;
     ascentM?: number | null;
     coords: number[][];
+    surface?: string;
+    windMode?: string;
     meta?: Record<string, unknown>;
   }
 ): Promise<SavedRoute> {
   const rows = await query<Record<string, unknown>>(
-    `insert into routes (user_id, name, kind, distance_m, ascent_m, coords, meta)
-     values ($1, $2, $3, $4, $5, $6, $7) returning *`,
+    `insert into routes (user_id, name, kind, distance_m, ascent_m, coords, meta, surface, wind_mode)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning *`,
     [
       userId,
       r.name.slice(0, 120),
@@ -230,6 +241,8 @@ export async function saveRoute(
       r.ascentM == null ? null : Math.round(r.ascentM),
       JSON.stringify(r.coords),
       JSON.stringify(r.meta ?? {}),
+      r.surface ?? "carretera",
+      r.windMode ?? "tailwind_home",
     ]
   );
   return routeFromRow(rows[0], true);
@@ -237,4 +250,110 @@ export async function saveRoute(
 
 export async function deleteRoute(userId: string, id: string): Promise<void> {
   await query(`delete from routes where id = $1 and user_id = $2`, [id, userId]);
+}
+
+/**
+ * Activa o desactiva el aviso por correo para una ruta guardada.
+ *
+ * De paso anota el idioma: encender el aviso es el unico momento en el que
+ * sabemos con certeza que esta persona va a recibir correo nuestro, asi que es
+ * cuando toca acordarse de en que lengua escribirselo.
+ */
+export async function setRouteNotify(
+  userId: string,
+  id: string,
+  notify: boolean,
+  locale?: string
+): Promise<void> {
+  await query(
+    `update routes set notify = $3, notified_at = case when $3 then notified_at else null end
+       where id = $1 and user_id = $2`,
+    [id, userId, notify]
+  );
+  if (notify && locale) {
+    await query(`update users set locale = $2 where id = $1`, [userId, locale]);
+  }
+}
+
+/**
+ * Todas las rutas con aviso activado, de cualquier usuario, con lo que hace
+ * falta para recalcular su pronostico: geometria, perfil y bici. Solo la usa
+ * el trabajo en segundo plano — nunca un endpoint que toque una sesion de
+ * usuario, porque cruza datos de todo el mundo a la vez.
+ */
+export interface NotifyCandidate {
+  routeId: string;
+  userId: string;
+  userEmail: string;
+  routeName: string;
+  coords: number[][];
+  surface: string;
+  windMode: string;
+  /** Idioma en el que escribirle el correo. */
+  locale: string;
+  notifiedAt: string | null;
+  profile: Profile;
+  bike: Bike | null;
+}
+
+export async function listNotifyCandidates(): Promise<NotifyCandidate[]> {
+  const rows = await query<Record<string, unknown>>(
+    `select
+       r.id as route_id, r.user_id, r.name as route_name, r.coords,
+       r.surface, r.wind_mode, r.notified_at,
+       u.email, u.locale,
+       p.height_cm, p.mass_kg, p.ftp_w, p.intensity, p.position,
+       b.id as bike_id, b.name as bike_name, b.frame, b.wheels, b.tyres,
+       b.clothing, b.helmet, b.luggage, b.bike_kg, b.extra_kg, b.is_default
+     from routes r
+     join users u on u.id = r.user_id
+     left join profiles p on p.user_id = r.user_id
+     left join bikes b on b.user_id = r.user_id and b.is_default
+     where r.notify
+       and u.email is not null
+       and (r.notified_at is null or r.notified_at < now() - interval '4 days')`
+  );
+  return rows
+    .filter((r) => r.email)
+    .map((r) => ({
+      routeId: String(r.route_id),
+      userId: String(r.user_id),
+      userEmail: String(r.email),
+      routeName: String(r.route_name),
+      coords: r.coords as number[][],
+      surface: String(r.surface ?? "carretera"),
+      windMode: String(r.wind_mode ?? "tailwind_home"),
+      locale: String(r.locale ?? "es"),
+      notifiedAt: r.notified_at ? new Date(r.notified_at as string).toISOString() : null,
+      profile: r.height_cm == null
+        ? { ...DEFAULT_PROFILE }
+        : {
+            heightCm: Number(r.height_cm),
+            massKg: Number(r.mass_kg),
+            ftpW: Number(r.ftp_w),
+            intensity: Number(r.intensity),
+            position: String(r.position),
+          },
+      bike:
+        r.bike_id == null
+          ? null
+          : bikeFromRow({
+              id: r.bike_id,
+              name: r.bike_name,
+              frame: r.frame,
+              wheels: r.wheels,
+              tyres: r.tyres,
+              clothing: r.clothing,
+              helmet: r.helmet,
+              luggage: r.luggage,
+              bike_kg: r.bike_kg,
+              extra_kg: r.extra_kg,
+              is_default: r.is_default,
+            }),
+    }));
+}
+
+/** Marca una ruta como avisada ahora mismo. */
+export async function markNotified(routeId: string): Promise<void> {
+  await query(`update routes set notified_at = now() where id = $1`, [routeId]);
 }

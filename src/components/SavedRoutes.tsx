@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { SavedRoute } from "@/lib/account";
 
 interface Props {
@@ -17,6 +18,7 @@ export default function SavedRoutes({ activo, onCargar }: Props) {
   const [rutas, setRutas] = useState<SavedRoute[] | null>(null);
   const [abierto, setAbierto] = useState(false);
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const t = useTranslations("SavedRoutes");
 
   useEffect(() => {
     if (!activo) {
@@ -38,15 +40,14 @@ export default function SavedRoutes({ activo, onCargar }: Props) {
         onClick={() => setAbierto((v) => !v)}
         className="label flex min-h-11 w-full items-center justify-between hover:text-[var(--color-muted)] md:min-h-0"
       >
-        <span>Mis rutas ({rutas.length})</span>
+        <span>{t("title", { count: rutas.length })}</span>
         <span className="text-[var(--color-faint)]">{abierto ? "−" : "+"}</span>
       </button>
 
       {abierto &&
         (rutas.length === 0 ? (
           <p className="rise mt-1.5 text-[0.7rem] leading-snug text-[var(--color-faint)]">
-            Todavía no has guardado ninguna. Traza o importa una y dale a
-            «Guardar ruta».
+            {t("empty")}
           </p>
         ) : (
           <ul className="rise scroll-thin mt-1.5 max-h-52 space-y-1 overflow-y-auto">
@@ -74,12 +75,52 @@ export default function SavedRoutes({ activo, onCargar }: Props) {
                   <span className="num block text-[0.64rem] text-[var(--color-faint)]">
                     {(r.distanceM / 1000).toFixed(1)} km
                     {r.ascentM ? ` · +${r.ascentM} m` : ""} ·{" "}
-                    {r.kind === "imported" ? "importada" : "trazada"}
+                    {r.kind === "imported" ? t("imported") : t("planned")}
                   </span>
                 </button>
                 <button
                   type="button"
-                  aria-label={`Borrar ${r.name}`}
+                  disabled={ocupado === r.id}
+                  aria-label={
+                    r.notify
+                      ? t("notifyOn", { name: r.name })
+                      : t("notifyOff", { name: r.name })
+                  }
+                  aria-pressed={r.notify}
+                  title={t("notifyTitle")}
+                  onClick={async () => {
+                    setOcupado(r.id);
+                    try {
+                      const d = await (
+                        await fetch("/api/routes", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id: r.id, notify: !r.notify }),
+                        })
+                      ).json();
+                      if (d.routes) setRutas(d.routes);
+                    } finally {
+                      setOcupado(null);
+                    }
+                  }}
+                  className={`grid h-6 w-6 shrink-0 place-items-center transition-colors disabled:opacity-50 ${
+                    r.notify
+                      ? "text-amber-300"
+                      : "text-[var(--color-faint)] hover:text-amber-200"
+                  }`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path
+                      d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  aria-label={t("delete", { name: r.name })}
                   onClick={async () => {
                     const d = await (
                       await fetch(`/api/routes?id=${r.id}`, { method: "DELETE" })

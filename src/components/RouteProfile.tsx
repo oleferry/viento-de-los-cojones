@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { TrackPoint } from "@/lib/types";
-import { windLabel } from "@/lib/format";
+import { windLabelKey } from "@/lib/format";
 
 interface Props {
   track: TrackPoint[];
@@ -21,6 +22,8 @@ const PAD = { l: 30, r: 10, t: 12, b: 16 };
 export default function RouteProfile({ track, onHover }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [cursor, setCursor] = useState<TrackPoint | null>(null);
+  const tWind = useTranslations("Wind");
+  const t = useTranslations("Profile");
 
   const model = useMemo(() => {
     if (track.length < 2) return null;
@@ -145,14 +148,15 @@ export default function RouteProfile({ track, onHover }: Props) {
 
       <div className="mt-1 flex items-center justify-between text-[0.7rem] text-[var(--color-faint)]">
         <div className="flex items-center gap-3">
-          <Legend color="#ef4444" text="de cara" />
-          <Legend color="#34d399" text="a favor" />
-          <Legend color="#facc15" text="velocidad" />
-          {model.hasEle && <Legend color="rgba(148,163,184,.5)" text="relieve" />}
+          <Legend color="#ef4444" text={tWind("head")} />
+          <Legend color="#34d399" text={tWind("tail")} />
+          <Legend color="#facc15" text={t("speed")} />
+          {model.hasEle && <Legend color="rgba(148,163,184,.5)" text={t("elevation")} />}
         </div>
         {cursor && (
           <span className="num text-[var(--color-ink)]">
-            km {cursor.km.toFixed(1)} · {cursor.kmh.toFixed(1)} km/h · {windLabel(cursor.yaw)}
+            km {cursor.km.toFixed(1)} · {cursor.kmh.toFixed(1)} km/h ·{" "}
+            {tWind(windLabelKey(cursor.yaw))}
           </span>
         )}
       </div>

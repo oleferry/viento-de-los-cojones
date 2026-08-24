@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { analyze } from "@/lib/analyze";
+import { pickLocale, serverI18n } from "@/lib/i18nServer";
+import { WeatherRateLimited } from "@/lib/wind";
 import type { AnalyzeRequest } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -33,18 +35,17 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
+    body = {};
   }
+  const i18n = await serverI18n(pickLocale(body?.locale));
+  const { t } = i18n;
 
   const raw = body.coords;
   if (!Array.isArray(raw) || raw.length < 2) {
-    return NextResponse.json(
-      { error: "La ruta necesita al menos dos puntos" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: t("needTwoPoints") }, { status: 400 });
   }
   if (raw.length > 20000) {
-    return NextResponse.json({ error: "La ruta tiene demasiados puntos" }, { status: 400 });
+    return NextResponse.json({ error: t("tooManyPoints") }, { status: 400 });
   }
 
   const coords: number[][] = [];
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
     coords.push(Number.isFinite(ele) ? [lon, lat, ele] : [lon, lat]);
   }
   if (coords.length < 2) {
-    return NextResponse.json({ error: "Las coordenadas no son válidas" }, { status: 400 });
+    return NextResponse.json({ error: t("badCoords") }, { status: 400 });
   }
 
   const req: AnalyzeRequest = {
@@ -79,16 +80,15 @@ export async function POST(request: Request) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(new Error("deadline")), 38_000);
   try {
-    return NextResponse.json(await analyze(req, ac.signal));
+    return NextResponse.json(await analyze(req, ac.signal, i18n));
   } catch (err) {
+    if (err instanceof WeatherRateLimited) {
+      return NextResponse.json({ error: t("weatherRateLimited") }, { status: 429 });
+    }
     const message = err instanceof Error ? err.message : String(err);
     const abortado = ac.signal.aborted || /abort/i.test(message);
     return NextResponse.json(
-      {
-        error: abortado
-          ? "El análisis ha tardado demasiado. Prueba con una ruta más corta."
-          : message,
-      },
+      { error: abortado ? t("analyzeSlow") : message },
       { status: abortado ? 504 : 502 }
     );
   } finally {

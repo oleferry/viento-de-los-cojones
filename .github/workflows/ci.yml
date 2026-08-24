@@ -1,0 +1,33 @@
+name: CI
+
+# Comprueba tipos y build en cada push y cada PR contra main. No despliega
+# nada — eso lo hace Vercel por su lado con su propia integracion de Git.
+# El objetivo es que una rotura se vea en rojo aqui antes de mezclar, en
+# vez de descubrirla mirando el sitio en produccion.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      # Sin variables de entorno a proposito: comprobado que el build pasa
+      # limpio sin ninguna (DATABASE_URL, AUTH_SECRET, ORS_API_KEY...), que
+      # es justo el diseño — la app funciona igual sin nada configurado.
+      # Si algun dia el build empieza a exigir una, esta CI lo avisara.
+      - run: npm run build

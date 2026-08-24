@@ -1,11 +1,22 @@
-const CARDINALS = [
-  "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-  "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
-];
+/**
+ * Formato de cifras y rumbos.
+ *
+ * Todo lo que depende del idioma entra por parametro o sale como CLAVE para
+ * que lo traduzca quien pinta: aqui no se escribe texto suelto en ningun
+ * idioma. La unica excepcion son los puntos cardinales, que son una tabla
+ * cerrada de dos entradas y no merecen un fichero de traduccion.
+ */
 
-/** Rumbo en grados -> punto cardinal en castellano (O de Oeste). */
-export function cardinal(deg: number): string {
-  return CARDINALS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+// El oeste es "O" de Oeste en castellano y "W" de West en ingles; el resto de
+// letras coinciden por casualidad.
+const CARDINALS: Record<string, string[]> = {
+  es: ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"],
+  en: ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"],
+};
+
+export function cardinal(deg: number, locale = "es"): string {
+  const table = CARDINALS[locale] ?? CARDINALS.es;
+  return table[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
 }
 
 export function kmh(ms: number): number {
@@ -26,28 +37,32 @@ export function fmtDelta(seconds: number): string {
   return `${sign}${m} min`;
 }
 
-export function fmtHour(iso: string): string {
-  return new Date(iso).toLocaleTimeString("es-ES", {
+const bcp47 = (locale: string) => (locale === "en" ? "en-GB" : "es-ES");
+
+export function fmtHour(iso: string, locale = "es"): string {
+  return new Date(iso).toLocaleTimeString(bcp47(locale), {
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-export function fmtDay(iso: string): string {
-  return new Date(iso).toLocaleDateString("es-ES", {
+export function fmtDay(iso: string, locale = "es"): string {
+  return new Date(iso).toLocaleDateString(bcp47(locale), {
     weekday: "short",
     day: "numeric",
     month: "short",
   });
 }
 
-/** Etiqueta corta para el tipo de viento que toca en un tramo. */
-export function windLabel(yaw: number): string {
-  if (yaw < 45) return "de cara";
-  if (yaw < 80) return "casi de cara";
-  if (yaw < 100) return "de lado";
-  if (yaw < 135) return "casi a favor";
-  return "a favor";
+export type WindLabelKey = "head" | "nearHead" | "cross" | "nearTail" | "tail";
+
+/** Que tipo de viento toca en un tramo, como clave a traducir. */
+export function windLabelKey(yaw: number): WindLabelKey {
+  if (yaw < 45) return "head";
+  if (yaw < 80) return "nearHead";
+  if (yaw < 100) return "cross";
+  if (yaw < 135) return "nearTail";
+  return "tail";
 }
 
 /**
@@ -69,22 +84,11 @@ function mix(a: number[], b: number[], t: number): string {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
 
-/** Escala de Beaufort abreviada, útil para saber si hoy toca sufrir. */
-export function beaufort(ms: number): { n: number; name: string } {
-  const table: [number, string][] = [
-    [0.5, "calma"],
-    [1.5, "ventolina"],
-    [3.3, "flojito"],
-    [5.5, "flojo"],
-    [7.9, "bonancible"],
-    [10.7, "fresquito"],
-    [13.8, "fresco"],
-    [17.1, "frescachón"],
-    [20.7, "temporal"],
-    [24.4, "temporal fuerte"],
-  ];
-  for (let i = 0; i < table.length; i++) {
-    if (ms < table[i][0]) return { n: i, name: table[i][1] };
+/** Escala de Beaufort abreviada: devuelve el grado y la clave del nombre. */
+export function beaufort(ms: number): { n: number; key: string } {
+  const limits = [0.5, 1.5, 3.3, 5.5, 7.9, 10.7, 13.8, 17.1, 20.7, 24.4];
+  for (let i = 0; i < limits.length; i++) {
+    if (ms < limits[i]) return { n: i, key: `bf${i}` };
   }
-  return { n: 10, name: "temporal duro" };
+  return { n: 10, key: "bf10" };
 }

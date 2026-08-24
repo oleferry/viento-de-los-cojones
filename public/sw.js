@@ -9,7 +9,7 @@
  *   - Las peticiones a /api NUNCA se cachean. Sin red, se falla y ya.
  *   - Las teselas del mapa se guardan un rato: son inmutables y pesan.
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const ARMAZON = `armazon-${VERSION}`;
 const TESELAS = `teselas-${VERSION}`;
 const MAX_TESELAS = 300;
@@ -18,7 +18,10 @@ self.addEventListener("install", (e) => {
   e.waitUntil(
     caches
       .open(ARMAZON)
-      .then((c) => c.addAll(["/", "/manifest.webmanifest", "/icon.svg"]))
+      // Los dos idiomas por separado: "/" solo redirige, y guardar ahi la
+      // ultima navegacion haria que sin cobertura te abriese la app en el
+      // idioma del otro.
+      .then((c) => c.addAll(["/es", "/en", "/manifest.webmanifest", "/icon.svg"]))
       .then(() => self.skipWaiting())
       .catch(() => self.skipWaiting())
   );
@@ -79,14 +82,28 @@ self.addEventListener("fetch", (e) => {
   // Navegacion: red primero para no servir una version vieja de la app, con el
   // cache como red de seguridad cuando no hay cobertura.
   if (req.mode === "navigate") {
+    // La clave es la ruta concreta, no "/": con dos idiomas, una unica clave
+    // hacia que la ultima visita pisara a la anterior y sin cobertura te
+    // abriese la app en el idioma equivocado.
+    const clave = url.pathname;
     e.respondWith(
       fetch(req)
         .then((res) => {
-          const copia = res.clone();
-          caches.open(ARMAZON).then((c) => c.put("/", copia));
+          // Las redirecciones no sirven de armazon: guardar la de "/" dejaria
+          // el cache con una respuesta que offline no lleva a ninguna parte.
+          if (res.ok && !res.redirected) {
+            const copia = res.clone();
+            caches.open(ARMAZON).then((c) => c.put(clave, copia));
+          }
           return res;
         })
-        .catch(() => caches.match("/").then((r) => r || Response.error()))
+        .catch(() =>
+          caches
+            .match(clave)
+            .then((r) => r || caches.match("/es"))
+            .then((r) => r || caches.match("/en"))
+            .then((r) => r || Response.error())
+        )
     );
     return;
   }

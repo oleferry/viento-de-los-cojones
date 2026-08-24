@@ -9,7 +9,10 @@ import type {
   RouteGeometry,
   Segment,
   TrackPoint,
+  WindMode,
 } from "./types";
+import type { WindField } from "./wind";
+import { NO_I18N, type I18n } from "./i18nServer";
 import {
   bbox,
   destination,
@@ -23,6 +26,7 @@ import {
   trimSpurs,
   uTurns,
 } from "./geo";
+import { cardinal } from "./format";
 import { DEFAULT_RIDER, calmTime, evaluateRoute } from "./physics";
 import { fetchElevations, fetchWindField } from "./wind";
 import {
@@ -95,6 +99,55 @@ function nextHour(ms: number): number {
   return Math.ceil(ms / 3600000) * 3600000;
 }
 
+/**
+ * Pronostico a varios dias para una geometria YA FIJADA: evalua las mismas
+ * segmentos contra cada hora de luz de los proximos `OUTLOOK_DAYS` dias.
+ * Es pura CPU (nada de peticiones), asi que sirve tanto para el resultado
+ * en vivo de `plan()` como para revisar en frio una ruta guardada — que es
+ * justo lo que hace el aviso por correo, sin gastar cupo de enrutado.
+ */
+export function computeOutlook(
+  segments: Segment[],
+  wind: WindField,
+  rider: RiderProfile,
+  windMode: WindMode,
+  tzOffsetMinutes: number
+): HourOption[] {
+  // Sin calma precalculada, a proposito: evaluateRoute la recalcula por
+  // hora con la densidad del aire REAL de esa hora. Compartir un unico
+  // valor de calma entre las ~75 horas del pronostico fue exactamente el
+  // bug que se arreglo hace tiempo (peajes negativos sin sentido al
+  // comparar contra la densidad de otro momento).
+  const tz = tzOffsetMinutes * 60000;
+  const outlook: HourOption[] = [];
+  const outlookEnd = Math.min(wind.end - 3600000, Date.now() + OUTLOOK_DAYS * 86400000);
+  for (let t = Math.max(wind.start, nextHour(Date.now())); t <= outlookEnd; t += 3600000) {
+    const localHour = new Date(t + tz).getUTCHours();
+    if (localHour < 6 || localHour > 20) continue; // de noche no se sale
+    const ev = evaluateRoute(
+      segments,
+      (lon, lat, tSec) => {
+        const s = wind.sample(lon, lat, t + tSec * 1000);
+        return { speed: s.speed10, fromDeg: s.fromDeg, rho: s.rho };
+      },
+      rider
+    );
+    outlook.push({
+      departure: new Date(t).toISOString(),
+      timeS: ev.timeS,
+      windCostS: ev.windCostS,
+      homeTailwind: ev.homeTailwind,
+      meanHeadwind: ev.meanHeadwind,
+      score:
+        windMode === "min_effort"
+          ? ev.timeS
+          : ev.timeS - ev.homeTailwind * 900 +
+            (windMode === "hard_first" ? ev.outboundTailwind * 300 : 0),
+    });
+  }
+  return outlook;
+}
+
 /** Numero de vertices del bucle: mas vertices = bucle mas redondo. */
 function loopVertices(distanceKm: number): number {
   if (distanceKm <= 25) return 4;
@@ -104,7 +157,8 @@ function loopVertices(distanceKm: number): number {
 
 export async function plan(
   req: PlanRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  { t, locale }: I18n = NO_I18N
 ): Promise<PlanResponse> {
   const warnings: string[] = [];
   const rider: RiderProfile = { ...DEFAULT_RIDER, ...(req.rider ?? {}) };
@@ -116,9 +170,7 @@ export async function plan(
   const baseMs = nextHour(req.departureMs ?? Date.now());
 
   if (!process.env.ORS_API_KEY) {
-    warnings.push(
-      "Sin clave de OpenRouteService: se enruta con servidores públicos gratuitos. Funciona bien, pero no informa del reparto de firme y puede saturarse en horas punta."
-    );
+    warnings.push(t("noOrsKey"));
   }
 
   // --- 1. Campo de viento -------------------------------------------------
@@ -236,8 +288,8 @@ export async function plan(
     const offset = Math.min(12000, Math.max(2500, direct * 0.18));
     const perp = (bearingOf(req.start, req.end) + 90) % 360;
     const variants: { id: string; label: string; via: LonLat }[] = [
-      { id: "norte", label: "Variante por un lado", via: destination(mid, perp, offset) },
-      { id: "sur", label: "Variante por el otro lado", via: destination(mid, (perp + 180) % 360, offset) },
+      { id: "norte", label: t("variantOneSide"), via: destination(mid, perp, offset) },
+      { id: "sur", label: t("variantOtherSide"), via: destination(mid, (perp + 180) % 360, offset) },
     ];
     const results = await Promise.allSettled(
       variants.map((v) => {
@@ -330,8 +382,8 @@ export async function plan(
         buildShape(
           job.id,
           heading != null
-            ? `Salida hacia ${cardinalOf(heading)} (${heading}°)`
-            : "Bucle",
+            ? t("headingOut", { dir: cardinal(heading, locale), deg: heading })
+            : t("loop"),
           r.value,
           heading
         )
@@ -404,9 +456,7 @@ export async function plan(
           );
           quedarse(cerca);
           cumpleFirme = (s) => (s.geometry.unpavedFrac ?? 1) <= mejor + 0.01;
-          warnings.push(
-            `Desde ahí no sale ningún bucle de esa distancia sin pisar algo de camino: el mejor lleva un ${(mejor * 100).toFixed(1)}% sin asfaltar.`
-          );
+          warnings.push(t("noPavedLoop", { pct: (mejor * 100).toFixed(1) }));
         }
       }
     } else if (req.surface === "camino") {
@@ -454,7 +504,9 @@ export async function plan(
         const heading = initialHeading(r.value.coords);
         const s = buildShape(
           `rt2-${i}`,
-          heading != null ? `Salida hacia ${cardinalOf(heading)} (${heading}°)` : "Bucle",
+          heading != null
+            ? t("headingOut", { dir: cardinal(heading, locale), deg: heading })
+            : t("loop"),
           r.value,
           heading
         );
@@ -657,7 +709,7 @@ export async function plan(
       scored = evaluateAll(shapes.filter((s) => finalists.some((f) => f.id === s.id)));
       applyScores(scored);
     } else {
-      warnings.push("Sin datos de altimetria: los tiempos ignoran las cuestas.");
+      warnings.push(t("noElevation"));
     }
   }
 
@@ -722,7 +774,7 @@ export async function plan(
     const { segments: _drop, ...evaluation } = evaluation0;
     return {
       id: `${s.shape.id}${s.reversed ? "-inv" : ""}`,
-      label: s.reversed ? `${s.shape.label} (sentido inverso)` : s.shape.label,
+      label: s.reversed ? t("reversed", { name: s.shape.label }) : s.shape.label,
       headingDeg: s.shape.headingDeg,
       reversed: s.reversed,
       geometry: {
@@ -763,29 +815,7 @@ export async function plan(
   // Solo se recalcula la simulacion, que es CPU pura: ni una peticion mas.
   const bestSegs = best.reversed ? best.shape.segmentsRev : best.shape.segmentsFwd;
   const bestCalm = calmFor(`${best.shape.key}:${best.reversed}`, bestSegs);
-  const tz = (req.tzOffsetMinutes ?? 0) * 60000;
-  const outlook: HourOption[] = [];
-  const outlookEnd = Math.min(wind.end - 3600000, Date.now() + OUTLOOK_DAYS * 86400000);
-  for (let t = Math.max(wind.start, nextHour(Date.now())); t <= outlookEnd; t += 3600000) {
-    const localHour = new Date(t + tz).getUTCHours();
-    if (localHour < 6 || localHour > 20) continue; // de noche no se sale
-    const ev = evaluateRoute(
-      bestSegs,
-      (lon, lat, tSec) => windAtMs(lon, lat, t + tSec * 1000)
-    , rider);
-    outlook.push({
-      departure: new Date(t).toISOString(),
-      timeS: ev.timeS,
-      windCostS: ev.windCostS,
-      homeTailwind: ev.homeTailwind,
-      meanHeadwind: ev.meanHeadwind,
-      score:
-        req.windMode === "min_effort"
-          ? ev.timeS
-          : ev.timeS - ev.homeTailwind * 900 +
-            (req.windMode === "hard_first" ? ev.outboundTailwind * 300 : 0),
-    });
-  }
+  const outlook = computeOutlook(bestSegs, wind, rider, req.windMode, req.tzOffsetMinutes ?? 0);
 
   const bestCandidate = toCandidate(best);
 
@@ -843,13 +873,6 @@ export async function plan(
   };
 }
 
-const CARDINALS = [
-  "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-  "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO",
-];
-function cardinalOf(deg: number): string {
-  return CARDINALS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
-}
 
 /**
  * Elige que rumbos de salida merece la pena enrutar.

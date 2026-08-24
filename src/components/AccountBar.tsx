@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import type { Bike, Profile } from "@/lib/account";
 
 export interface Cuenta {
@@ -24,21 +26,22 @@ export default function AccountBar({
   onRecargar: () => void;
 }) {
   const [saliendo, setSaliendo] = useState(false);
+  const t = useTranslations("Account");
 
   if (!cuenta?.authAvailable) return null;
 
   if (!cuenta.user) {
     return (
-      <a
+      <Link
         href="/entrar"
         className="flex items-center gap-2 text-[0.7rem] font-semibold text-[var(--color-faint)] transition-colors hover:text-[var(--color-accent)]"
       >
-        Entrar para guardar tus rutas
-      </a>
+        {t("signInToSave")}
+      </Link>
     );
   }
 
-  const nombre = cuenta.user.name || cuenta.user.email || "Tú";
+  const nombre = cuenta.user.name || cuenta.user.email || t("you");
   return (
     <div className="flex items-center gap-2">
       <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-[0.6rem] font-bold">
@@ -73,7 +76,7 @@ export default function AccountBar({
         }}
         className="shrink-0 text-[0.66rem] text-[var(--color-faint)] transition-colors hover:text-[var(--color-ink)]"
       >
-        salir
+        {t("signOut")}
       </button>
     </div>
   );

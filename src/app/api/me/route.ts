@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth, authAvailable } from "@/lib/auth";
+import { requestI18n } from "@/lib/i18nServer";
 import {
   DEFAULT_PROFILE,
   getProfile,
@@ -59,16 +60,17 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const { t } = await requestI18n(request);
   const session = authAvailable ? await auth() : null;
   const id = session?.user?.id;
-  if (!id) return NextResponse.json({ error: "Hay que entrar primero" }, { status: 401 });
+  if (!id) return NextResponse.json({ error: t("mustSignIn") }, { status: 401 });
 
   try {
     const body = await request.json();
     return NextResponse.json({ profile: await saveProfile(id, limpiar(body)) });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "No se ha podido guardar" },
+      { error: err instanceof Error ? err.message : t("couldNotSave") },
       { status: 500 }
     );
   }

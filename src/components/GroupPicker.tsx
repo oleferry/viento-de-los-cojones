@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import {
   defaultDraftFraction,
   draftMultiplier,
@@ -20,12 +21,13 @@ export default function GroupPicker({
   group: GroupSetup;
   onChange: (g: GroupSetup) => void;
 }) {
+  const t = useTranslations("Group");
   const m = draftMultiplier(group.groupSize);
   const aeroMult = 1 - group.draftFraction + group.draftFraction * m;
 
   return (
     <div>
-      <div className="label mb-1.5">Con quién vas</div>
+      <div className="label mb-1.5">{t("whoWith")}</div>
       <div className="grid grid-cols-8 gap-1">
         {GROUPS.map((n) => (
           <button
@@ -43,7 +45,7 @@ export default function GroupPicker({
               color: group.groupSize === n ? "var(--color-accent)" : "var(--color-muted)",
             }}
           >
-            {n === 1 ? "solo" : n}
+            {n === 1 ? t("alone") : n}
           </button>
         ))}
       </div>
@@ -51,7 +53,7 @@ export default function GroupPicker({
       {group.groupSize > 1 && (
         <div className="rise mt-2">
           <div className="mb-1 flex items-baseline justify-between">
-            <span className="label">Tiempo a rueda</span>
+            <span className="label">{t("timeDrafting")}</span>
             <span className="num text-[0.8rem] font-bold text-[var(--color-accent)]">
               {Math.round(group.draftFraction * 100)}%
             </span>
@@ -67,14 +69,11 @@ export default function GroupPicker({
             }
           />
           <p className="mt-1 text-[0.65rem] leading-snug text-[var(--color-faint)]">
-            Relevando a partes iguales irías tapado el{" "}
-            {Math.round(defaultDraftFraction(group.groupSize) * 100)}% del tiempo.
-            A rueda ahorras un {Math.round((1 - m) * 100)}% de arrastre, así que
-            de media pagas el{" "}
-            <span className="num text-[var(--color-muted)]">
-              {Math.round(aeroMult * 100)}%
-            </span>{" "}
-            del aire. Tapa menos cuanto más de lado entre.
+            {t("explainer", {
+              even: Math.round(defaultDraftFraction(group.groupSize) * 100),
+              saving: Math.round((1 - m) * 100),
+              paid: Math.round(aeroMult * 100),
+            })}
           </p>
         </div>
       )}

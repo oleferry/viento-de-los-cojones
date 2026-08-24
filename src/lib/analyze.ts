@@ -19,6 +19,7 @@ import {
   toSegments,
   uTurns,
 } from "./geo";
+import { NO_I18N, type I18n } from "./i18nServer";
 import { DEFAULT_RIDER, evaluateRoute } from "./physics";
 import { fetchElevations, fetchWindField } from "./wind";
 
@@ -38,7 +39,8 @@ const nextHour = (ms: number) => Math.ceil(ms / 3600000) * 3600000;
  */
 export async function analyze(
   req: AnalyzeRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  { t }: I18n = NO_I18N
 ): Promise<PlanResponse> {
   const rider: RiderProfile = { ...DEFAULT_RIDER, ...(req.rider ?? {}) };
   const flex = Math.max(0, Math.min(12, req.flexHours ?? 3));
@@ -84,7 +86,7 @@ export async function analyze(
       }
       coords = conEle;
     } else {
-      warnings.push("Sin datos de altimetría: los tiempos ignoran las cuestas.");
+      warnings.push(t("noElevation"));
     }
   }
 
@@ -212,13 +214,13 @@ export async function analyze(
     };
   };
 
-  const nombre = req.name?.trim() || "Mi ruta";
+  const nombre = req.name?.trim() || t("myRoute");
   const best = construir(
     mejor.reversed,
     mejor.dep,
     mejor.ev,
     mejor.reversed ? "importada-inv" : "importada",
-    mejor.reversed ? `${nombre} (sentido inverso)` : nombre
+    mejor.reversed ? t("reversed", { name: nombre }) : nombre
   );
 
   const alternatives: Candidate[] = [];
@@ -232,7 +234,7 @@ export async function analyze(
         mejor.dep,
         ev,
         otro ? "importada-inv" : "importada",
-        otro ? `${nombre} (sentido inverso)` : nombre
+        otro ? t("reversed", { name: nombre }) : nombre
       )
     );
   }
@@ -300,7 +302,7 @@ export async function analyze(
     },
     meta: {
       provider: "ors",
-      profile: "ruta importada",
+      profile: t("importedRoute"),
       requestedKm: round(distanceM / 1000, 1),
       routingCalls: 0,
       warnings,

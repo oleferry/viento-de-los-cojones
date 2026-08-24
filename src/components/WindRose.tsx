@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
 import { cardinal } from "@/lib/format";
 
 interface Props {
@@ -18,6 +19,8 @@ interface Props {
  * arranca la ruta. Si los dos van a la par, sales con el aire de culo.
  */
 export default function WindRose({ fromDeg, speed, headingDeg, size = 132 }: Props) {
+  const t = useTranslations("Rose");
+  const locale = useLocale();
   const c = size / 2;
   const r = c - 15;
   const toward = (fromDeg + 180) % 360;
@@ -32,7 +35,7 @@ export default function WindRose({ fromDeg, speed, headingDeg, size = 132 }: Pro
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img"
-      aria-label={`Viento del ${cardinal(fromDeg)} a ${kmh.toFixed(0)} kilómetros por hora`}>
+      aria-label={t("label", { dir: cardinal(fromDeg, locale), kmh: kmh.toFixed(0) })}>
       <defs>
         <radialGradient id="rose-bg">
           <stop offset="55%" stopColor="rgba(255,255,255,0.02)" />
@@ -59,7 +62,8 @@ export default function WindRose({ fromDeg, speed, headingDeg, size = 132 }: Pro
         );
       })}
 
-      {(["N", "E", "S", "O"] as const).map((lab, i) => {
+      {[0, 90, 180, 270].map((deg, i) => {
+        const lab = cardinal(deg, locale);
         const [x, y] = pt(i * 90, r + 9);
         return (
           <text key={lab} x={x} y={y} textAnchor="middle" dominantBaseline="central"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 interface PromptInstalacion extends Event {
   prompt: () => Promise<void>;
@@ -34,6 +35,7 @@ export default function InstalarApp() {
   const [prompt, setPrompt] = useState<PromptInstalacion | null>(null);
   const [ios, setIos] = useState(false);
   const [visible, setVisible] = useState(false);
+  const t = useTranslations("Install");
 
   useEffect(() => {
     const yaInstalada =
@@ -79,14 +81,11 @@ export default function InstalarApp() {
   return (
     <div className="card rise flex items-center gap-2 px-3 py-2.5">
       <span className="min-w-0 flex-1 text-[0.72rem] leading-snug text-[var(--color-muted)]">
-        {ios ? (
-          <>
-            Para tenerla como app: <b className="text-[var(--color-ink)]">Compartir</b> →{" "}
-            <b className="text-[var(--color-ink)]">Añadir a pantalla de inicio</b>.
-          </>
-        ) : (
-          "Instálala y la tienes como app, sin barra del navegador y abriendo sin cobertura."
-        )}
+        {ios
+          ? t.rich("ios", {
+              b: (chunks) => <b className="text-[var(--color-ink)]">{chunks}</b>,
+            })
+          : t("android")}
       </span>
       {prompt && (
         <button
@@ -98,12 +97,12 @@ export default function InstalarApp() {
             setVisible(false);
           }}
         >
-          Instalar
+          {t("install")}
         </button>
       )}
       <button
         onClick={descartar}
-        aria-label="No instalar"
+        aria-label={t("dismiss")}
         className="grid h-11 w-8 shrink-0 place-items-center text-[1.1rem] leading-none text-[var(--color-faint)] hover:text-[var(--color-ink)]"
       >
         ×

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   CLOTHING,
   DEFAULT_SETUP,
@@ -31,8 +32,17 @@ interface Props {
 }
 
 export default function RiderSheet({ setup, onChange, surface, onClose }: Props) {
+  const t = useTranslations("Rider");
+  const tEq = useTranslations("Equipment");
   const set = <K extends keyof RiderSetup>(key: K, value: RiderSetup[K]) =>
     onChange((prev) => ({ ...prev, [key]: value }));
+
+  /** Nombre y nota de una pieza del catalogo, buscados por su id. */
+  const nameOf = (group: string, id: string) => tEq(`${group}.${id}.label`);
+  const noteOf = (group: string, id: string) => {
+    const key = `${group}.${id}.note`;
+    return tEq.has(key) ? tEq(key) : undefined;
+  };
 
   const cda = useMemo(() => computeCdA(setup), [setup]);
   const crr = useMemo(() => computeCrr(setup, surface), [setup, surface]);
@@ -43,7 +53,7 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
       <button
         type="button"
-        aria-label="Cerrar"
+        aria-label={t("close")}
         onClick={onClose}
         className="absolute inset-0 bg-black/55 backdrop-blur-sm"
       />
@@ -51,18 +61,16 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
         <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/8 px-5 py-3.5 backdrop-blur-xl"
           style={{ background: "linear-gradient(180deg,rgba(22,29,42,.97),rgba(20,26,38,.9))" }}>
           <div>
-            <h2 className="text-[0.95rem] font-bold tracking-tight">Perfil de ciclista</h2>
-            <p className="text-[0.7rem] text-[var(--color-faint)]">
-              Cuanto mejor lo afines, más se parecerán los tiempos a los tuyos.
-            </p>
+            <h2 className="text-[0.95rem] font-bold tracking-tight">{t("title")}</h2>
+            <p className="text-[0.7rem] text-[var(--color-faint)]">{t("subtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
             <button className="btn !px-2.5 !py-1.5 !text-[0.7rem]"
               onClick={() => onChange(() => ({ ...DEFAULT_SETUP }))}>
-              Reiniciar
+              {t("reset")}
             </button>
             <button className="btn btn-primary !px-3.5 !py-1.5" onClick={onClose}>
-              Listo
+              {t("done")}
             </button>
           </div>
         </header>
@@ -70,35 +78,39 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
         <div className="grid gap-5 px-5 py-5 md:grid-cols-2">
           {/* ---------- cuerpo ---------- */}
           <section className="space-y-3">
-            <SectionTitle>Tú</SectionTitle>
+            <SectionTitle>{t("you")}</SectionTitle>
             <div className="grid grid-cols-2 gap-2">
-              <NumberField label="Altura" unit="cm" value={setup.heightCm} min={130} max={215}
+              <NumberField label={t("height")} unit="cm" value={setup.heightCm} min={130} max={215}
                 onChange={(v) => set("heightCm", v)} />
-              <NumberField label="Peso" unit="kg" value={setup.massKg} min={35} max={160}
+              <NumberField label={t("weight")} unit="kg" value={setup.massKg} min={35} max={160}
                 onChange={(v) => set("massKg", v)} />
-              <NumberField label="Bici" unit="kg" value={setup.bikeKg} min={4} max={25} step={0.1}
+              <NumberField label={t("bike")} unit="kg" value={setup.bikeKg} min={4} max={25} step={0.1}
                 onChange={(v) => set("bikeKg", v)} />
-              <NumberField label="Equipaje" unit="kg" value={setup.extraKg} min={0} max={30} step={0.5}
+              <NumberField label={t("luggage")} unit="kg" value={setup.extraKg} min={0} max={30} step={0.5}
                 onChange={(v) => set("extraKg", v)} />
             </div>
             <p className="text-[0.66rem] leading-snug text-[var(--color-faint)]">
-              Con la altura y el peso se calcula tu superficie corporal (Du Bois) y de
-              ahí el área que le ofreces al aire: <span className="num">{cda.bsa.toFixed(2)} m²</span> de
-              superficie, <span className="num">{cda.body.toFixed(3)} m²</span> de CdA de cuerpo.
+              {t.rich("bsaExplainer", {
+                bsa: cda.bsa.toFixed(2),
+                body: cda.body.toFixed(3),
+                n: (chunks) => <span className="num">{chunks}</span>,
+              })}
             </p>
 
-            <Choice label="Postura habitual" items={POSITIONS} value={setup.position}
-              onChange={(v) => set("position", v)} cols={4} />
+            <Choice label={t("position")} items={POSITIONS} value={setup.position}
+              onChange={(v) => set("position", v)} cols={4}
+              nameOf={(id) => nameOf("positions", id)}
+              noteOf={(id) => noteOf("positions", id)} />
           </section>
 
           {/* ---------- motor ---------- */}
           <section className="space-y-3">
-            <SectionTitle>Motor</SectionTitle>
+            <SectionTitle>{t("engine")}</SectionTitle>
             <div className="grid grid-cols-2 gap-2">
               <NumberField label="FTP" unit="W" value={setup.ftpW} min={80} max={500}
                 onChange={(v) => set("ftpW", v)} />
               <div className="card px-2.5 py-2">
-                <div className="label text-[0.6rem]">Potencia objetivo</div>
+                <div className="label text-[0.6rem]">{t("targetPower")}</div>
                 <div className="num mt-0.5 text-[1.05rem] font-bold leading-none text-[var(--color-accent)]">
                   {power} W
                 </div>
@@ -109,7 +121,7 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
             </div>
             <div>
               <div className="mb-1.5 flex items-baseline justify-between">
-                <span className="label">Factor de intensidad</span>
+                <span className="label">{t("intensityFactor")}</span>
                 <span className="num text-sm font-bold text-[var(--color-accent)]">
                   {setup.intensity.toFixed(2)}
                 </span>
@@ -117,34 +129,39 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
               <input type="range" min={0.45} max={1} step={0.01} value={setup.intensity}
                 onChange={(e) => set("intensity", Number(e.target.value))} />
               <div className="mt-1 flex justify-between text-[0.62rem] text-[var(--color-faint)]">
-                <span>paseo</span>
-                <span>fondo</span>
-                <span>tempo</span>
-                <span>umbral</span>
+                <span>{t("ifCruise")}</span>
+                <span>{t("ifEndurance")}</span>
+                <span>{t("ifTempo")}</span>
+                <span>{t("ifThreshold")}</span>
               </div>
               <p className="mt-1.5 text-[0.66rem] leading-snug text-[var(--color-faint)]">
-                Qué fracción de tu FTP piensas sostener de media. Para una salida larga
-                lo normal es 0,65–0,75; por encima de 0,85 solo se aguanta una hora o dos.
+                {t("intensityExplainer")}
               </p>
             </div>
           </section>
 
           {/* ---------- material ---------- */}
           <section className="space-y-3 md:col-span-2">
-            <SectionTitle>Material</SectionTitle>
+            <SectionTitle>{t("gear")}</SectionTitle>
             <div className="grid gap-3 md:grid-cols-2">
-              <Select label="Cuadro" items={FRAMES} value={setup.frame}
-                onChange={(v) => set("frame", v)} />
-              <Select label="Ruedas" items={WHEELS} value={setup.wheels}
-                onChange={(v) => set("wheels", v)} />
-              <Select label="Neumáticos" items={TYRES} value={setup.tyres}
-                onChange={(v) => set("tyres", v)} />
-              <Select label="Equipaje" items={LUGGAGE} value={setup.luggage}
-                onChange={(v) => set("luggage", v)} />
-              <Select label="Ropa" items={CLOTHING} value={setup.clothing}
-                onChange={(v) => set("clothing", v)} />
-              <Select label="Casco" items={HELMETS} value={setup.helmet}
-                onChange={(v) => set("helmet", v)} />
+              <Select label={t("frame")} items={FRAMES} value={setup.frame}
+                onChange={(v) => set("frame", v)}
+                nameOf={(id) => nameOf("frames", id)} noteOf={(id) => noteOf("frames", id)} />
+              <Select label={t("wheels")} items={WHEELS} value={setup.wheels}
+                onChange={(v) => set("wheels", v)}
+                nameOf={(id) => nameOf("wheels", id)} noteOf={(id) => noteOf("wheels", id)} />
+              <Select label={t("tyres")} items={TYRES} value={setup.tyres}
+                onChange={(v) => set("tyres", v)}
+                nameOf={(id) => nameOf("tyres", id)} noteOf={(id) => noteOf("tyres", id)} />
+              <Select label={t("luggage")} items={LUGGAGE} value={setup.luggage}
+                onChange={(v) => set("luggage", v)}
+                nameOf={(id) => nameOf("luggage", id)} noteOf={(id) => noteOf("luggage", id)} />
+              <Select label={t("clothing")} items={CLOTHING} value={setup.clothing}
+                onChange={(v) => set("clothing", v)}
+                nameOf={(id) => nameOf("clothing", id)} noteOf={(id) => noteOf("clothing", id)} />
+              <Select label={t("helmet")} items={HELMETS} value={setup.helmet}
+                onChange={(v) => set("helmet", v)}
+                nameOf={(id) => nameOf("helmets", id)} noteOf={(id) => noteOf("helmets", id)} />
             </div>
           </section>
 
@@ -152,7 +169,7 @@ export default function RiderSheet({ setup, onChange, surface, onClose }: Props)
           <section className="md:col-span-2">
             <div className="card p-3">
               <div className="mb-2.5 flex items-baseline justify-between">
-                <span className="label">Lo que sale de todo esto</span>
+                <span className="label">{t("summary")}</span>
                 <span className="num text-[0.72rem] text-[var(--color-faint)]">
                   CdA {cda.total.toFixed(3)} m² · Crr {crr.toFixed(4)} · {mass.toFixed(1)} kg
                 </span>
@@ -225,48 +242,48 @@ function NumberField({
   );
 }
 
-function Choice<T extends { id: string; label: string; note?: string }>({
-  label, items, value, onChange, cols,
+function Choice<T extends { id: string }>({
+  label, items, value, onChange, cols, nameOf, noteOf,
 }: {
   label: string; items: T[]; value: string; onChange: (v: string) => void; cols: number;
+  nameOf: (id: string) => string; noteOf: (id: string) => string | undefined;
 }) {
-  const active = items.find((i) => i.id === value);
+  const note = noteOf(value);
   return (
     <div>
       <div className="label mb-1.5">{label}</div>
       <div className="seg" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>
         {items.map((i) => (
           <button key={i.id} data-on={value === i.id} onClick={() => onChange(i.id)}>
-            {i.label}
+            {nameOf(i.id)}
           </button>
         ))}
       </div>
-      {active?.note && (
-        <p className="mt-1 text-[0.66rem] text-[var(--color-faint)]">{active.note}</p>
-      )}
+      {note && <p className="mt-1 text-[0.66rem] text-[var(--color-faint)]">{note}</p>}
     </div>
   );
 }
 
-function Select<T extends { id: string; label: string; note?: string }>({
-  label, items, value, onChange,
+function Select<T extends { id: string }>({
+  label, items, value, onChange, nameOf, noteOf,
 }: {
   label: string; items: T[]; value: string; onChange: (v: string) => void;
+  nameOf: (id: string) => string; noteOf: (id: string) => string | undefined;
 }) {
-  const active = items.find((i) => i.id === value);
+  const note = noteOf(value);
   return (
     <label className="block">
       <span className="label mb-1.5 block">{label}</span>
       <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
         {items.map((i) => (
           <option key={i.id} value={i.id}>
-            {i.label}
+            {nameOf(i.id)}
           </option>
         ))}
       </select>
-      {active?.note && (
+      {note && (
         <p className="mt-1 line-clamp-2 text-[0.64rem] leading-snug text-[var(--color-faint)]">
-          {active.note}
+          {note}
         </p>
       )}
     </label>
@@ -274,13 +291,14 @@ function Select<T extends { id: string; label: string; note?: string }>({
 }
 
 function CdABar({ breakdown }: { breakdown: ReturnType<typeof computeCdA> }) {
+  const t = useTranslations("Rider");
   const parts = [
-    { key: "Cuerpo", v: breakdown.body, c: "#ff8a3d" },
-    { key: "Cuadro", v: breakdown.frame, c: "#4cc9f0" },
-    { key: "Ruedas", v: breakdown.wheels, c: "#a78bfa" },
-    { key: "Ropa", v: breakdown.clothing, c: "#34d399" },
-    { key: "Casco", v: breakdown.helmet, c: "#facc15" },
-    { key: "Equipaje", v: breakdown.luggage, c: "#f472b6" },
+    { key: "body", v: breakdown.body, c: "#ff8a3d" },
+    { key: "frame", v: breakdown.frame, c: "#4cc9f0" },
+    { key: "wheels", v: breakdown.wheels, c: "#a78bfa" },
+    { key: "clothing", v: breakdown.clothing, c: "#34d399" },
+    { key: "helmet", v: breakdown.helmet, c: "#facc15" },
+    { key: "luggage", v: breakdown.luggage, c: "#f472b6" },
   ].filter((p) => p.v > 0.0005);
   const sum = parts.reduce((a, p) => a + p.v, 0) || 1;
 
@@ -289,14 +307,14 @@ function CdABar({ breakdown }: { breakdown: ReturnType<typeof computeCdA> }) {
       <div className="flex h-2.5 overflow-hidden rounded-full">
         {parts.map((p) => (
           <div key={p.key} style={{ width: `${(p.v / sum) * 100}%`, background: p.c }}
-            title={`${p.key}: ${p.v.toFixed(3)} m²`} />
+            title={`${t(p.key)}: ${p.v.toFixed(3)} m²`} />
         ))}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[0.66rem] text-[var(--color-faint)]">
         {parts.map((p) => (
           <span key={p.key} className="inline-flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: p.c }} />
-            {p.key} <span className="num text-[var(--color-muted)]">{p.v.toFixed(3)}</span>
+            {t(p.key)} <span className="num text-[var(--color-muted)]">{p.v.toFixed(3)}</span>
           </span>
         ))}
       </div>

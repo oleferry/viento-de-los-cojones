@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
 import {
   GeolocateControl,
   LngLatBounds,
@@ -17,14 +18,14 @@ import {
   type StyleSpecification,
 } from "maplibre-gl";
 import type { Candidate, LonLat, TrackPoint } from "@/lib/types";
-import { windLabel } from "@/lib/format";
+import { windLabelKey } from "@/lib/format";
 
 export type MapTheme = "dark" | "light";
 
 const ATTRIB =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &middot; ' +
   '&copy; <a href="https://carto.com/attributions">CARTO</a> &middot; ' +
-  'viento <a href="https://open-meteo.com/">Open-Meteo</a>';
+  '<a href="https://open-meteo.com/">Open-Meteo</a>';
 
 function styleFor(theme: MapTheme): StyleSpecification {
   // Voyager en claro porque dibuja las carreteras secundarias y los caminos
@@ -209,6 +210,10 @@ export default function MapView({
   const holder = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
   const markers = useRef<Marker[]>([]);
+  // Cambiar de idioma navega a otra URL, asi que el componente se vuelve a
+  // montar entero: basta con leer las traducciones una vez.
+  const t = useTranslations("Map");
+  const tWind = useTranslations("Wind");
   /**
    * Llevamos nosotros la cuenta de si las capas estan puestas. No se puede
    * preguntar `m.getLayer(...)`: mientras el estilo no este "cargado" devuelve
@@ -494,8 +499,8 @@ export default function MapView({
         .setLngLat(e.lngLat)
         .setHTML(
           `<div style="font-weight:600;margin-bottom:2px">km ${Number(p.km).toFixed(1)} &middot; ${Math.round(Number(p.min))} min</div>` +
-            `<div style="opacity:.7">${Number(p.kmh).toFixed(1)} km/h &middot; viento ${windLabel(Number(p.yaw))} ` +
-            `(${Math.abs(Number(p.hw) * 3.6).toFixed(0)} km/h ${Number(p.hw) >= 0 ? "en contra" : "a favor"})</div>`
+            `<div style="opacity:.7">${Number(p.kmh).toFixed(1)} km/h &middot; ${tWind(windLabelKey(Number(p.yaw)))} ` +
+            `(${Math.abs(Number(p.hw) * 3.6).toFixed(0)} km/h)</div>`
         )
         .addTo(m);
     });
@@ -579,8 +584,9 @@ export default function MapView({
       el.style.cssText = `width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid #05070b;box-shadow:0 0 0 2px ${color}55, 0 4px 12px rgba(0,0,0,.6)`;
       markers.current.push(new Marker({ element: el }).setLngLat(p).addTo(m));
     };
-    if (start) make(start, "#ff8a3d", "Salida");
-    if (shape === "lineal" && end) make(end, "#4cc9f0", "Llegada");
+    if (start) make(start, "#ff8a3d", t("start"));
+    if (shape === "lineal" && end) make(end, "#4cc9f0", t("finish"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [start, end, shape]);
 
   // --- encuadre ----------------------------------------------------------

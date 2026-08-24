@@ -20,89 +20,88 @@
  *    (0,007184 * altura^0,725 * masa^0,425) escalada por la postura.
  */
 
+/**
+ * Los catalogos llevan SOLO fisica: el `id` es la clave con la que se busca el
+ * nombre y la nota en los ficheros de traduccion (namespace `Equipment`). Aqui
+ * no se escribe texto de interfaz en ningun idioma.
+ */
 export interface CatalogItem {
   id: string;
-  label: string;
   /** Aportacion al CdA total, en m^2. */
   cda: number;
-  note?: string;
 }
 
 /* ---------------------------------------------------------------- posturas */
 
 export interface Position {
   id: string;
-  label: string;
   /** Coeficiente que multiplica la superficie corporal para dar el CdA del cuerpo. */
   k: number;
-  note: string;
 }
 
 export const POSITIONS: Position[] = [
-  { id: "tops", label: "Manos arriba", k: 0.1609, note: "erguido, paseo o subiendo" },
-  { id: "hoods", label: "En las manetas", k: 0.1297, note: "la postura normal de ruta" },
-  { id: "drops", label: "Manillar bajo", k: 0.1142, note: "agachado, tirando" },
-  { id: "aero", label: "Acoples / crono", k: 0.0882, note: "posicion de contrarreloj" },
+  { id: "tops", k: 0.1609 },
+  { id: "hoods", k: 0.1297 },
+  { id: "drops", k: 0.1142 },
+  { id: "aero", k: 0.0882 },
 ];
 
 /* ----------------------------------------------------------------- cuadros */
 
 export const FRAMES: CatalogItem[] = [
-  { id: "tt", label: "Cabra / contrarreloj", cda: 0.03, note: "cuadro de crono" },
-  { id: "aero-top", label: "Aero de gama alta", cda: 0.035, note: "Cervélo S5, Canyon Aeroad CFR, Giant Propel, Scott Foil RC, Pinarello Dogma F, Ridley Noah Fast, Bianchi Oltre" },
-  { id: "aero-allround", label: "All-round moderno", cda: 0.042, note: "Tarmac SL8, Trek Madone/Émonda, Factor Ostro VAM, BMC Teammachine R, Cervélo Soloist, Orbea Orca Aero, SuperSix Evo" },
-  { id: "classic", label: "Carretera clásica", cda: 0.052, note: "tubos redondos, cables por fuera, acero o alu" },
-  { id: "endurance", label: "Endurance / gran fondo", cda: 0.05, note: "Roubaix, Domane, Defy, Synapse" },
-  { id: "gravel", label: "Gravel", cda: 0.058, note: "manillar flare y cubiertas anchas" },
-  { id: "mtb", label: "MTB", cda: 0.075, note: "manillar recto y ruedas de tacos" },
-  { id: "city", label: "Urbana / híbrida", cda: 0.07, note: "postura erguida, guardabarros" },
+  { id: "tt", cda: 0.03 },
+  { id: "aero-top", cda: 0.035 },
+  { id: "aero-allround", cda: 0.042 },
+  { id: "classic", cda: 0.052 },
+  { id: "endurance", cda: 0.05 },
+  { id: "gravel", cda: 0.058 },
+  { id: "mtb", cda: 0.075 },
+  { id: "city", cda: 0.07 },
 ];
 
 /* ------------------------------------------------------------------ ruedas */
 
 export const WHEELS: CatalogItem[] = [
-  { id: "disc", label: "Lenticular + 60 mm", cda: 0.007, note: "solo para crono" },
-  { id: "d80", label: "80 mm y más", cda: 0.009, note: "Zipp 858/808, Princeton Blur 633" },
-  { id: "d60", label: "58-65 mm", cda: 0.011, note: "Zipp 404, Enve SES 6.7, Roval Rapide CLX II, DT Swiss ARC 1100 62, Dura-Ace C60, Bora WTO 60, Hunt 54/58" },
-  { id: "d45", label: "45-55 mm", cda: 0.013, note: "Enve SES 4.5, DT Swiss ARC 1100 50, Dura-Ace C50, Bora WTO 45, Vision Metron 45, Mavic Cosmic SL 45" },
-  { id: "d35", label: "32-42 mm", cda: 0.016, note: "Zipp 303 Firecrest, Enve SES 3.4, Roval Alpinist CLX, Dura-Ace C36" },
-  { id: "d25", label: "Caja baja de carbono", cda: 0.019, note: "perfil bajo, para montaña" },
-  { id: "alu", label: "Aluminio de caja baja", cda: 0.022, note: "Mavic Ksyrium, Shimano RS, ruedas de serie" },
-  { id: "gravel", label: "Gravel 40 mm", cda: 0.02, note: "llanta ancha con cubierta de 40-45 mm" },
-  { id: "mtb", label: "MTB 29\"", cda: 0.03, note: "tacos" },
+  { id: "disc", cda: 0.007 },
+  { id: "d80", cda: 0.009 },
+  { id: "d60", cda: 0.011 },
+  { id: "d45", cda: 0.013 },
+  { id: "d35", cda: 0.016 },
+  { id: "d25", cda: 0.019 },
+  { id: "alu", cda: 0.022 },
+  { id: "gravel", cda: 0.02 },
+  { id: "mtb", cda: 0.03 },
 ];
 
 /* -------------------------------------------------------- ropa y accesorios */
 
 export const CLOTHING: CatalogItem[] = [
-  { id: "skinsuit", label: "Mono aero", cda: -0.015 },
-  { id: "tight", label: "Maillot ajustado", cda: 0 },
-  { id: "loose", label: "Maillot holgado", cda: 0.02 },
-  { id: "jacket", label: "Chaqueta o cortavientos", cda: 0.035 },
+  { id: "skinsuit", cda: -0.015 },
+  { id: "tight", cda: 0 },
+  { id: "loose", cda: 0.02 },
+  { id: "jacket", cda: 0.035 },
 ];
 
 export const HELMETS: CatalogItem[] = [
-  { id: "tt", label: "Casco de crono", cda: -0.015 },
-  { id: "aero", label: "Casco aero", cda: -0.008 },
-  { id: "road", label: "Casco normal", cda: 0 },
-  { id: "none", label: "Sin casco", cda: 0.005 },
+  { id: "tt", cda: -0.015 },
+  { id: "aero", cda: -0.008 },
+  { id: "road", cda: 0 },
+  { id: "none", cda: 0.005 },
 ];
 
 export const LUGGAGE: CatalogItem[] = [
-  { id: "none", label: "Nada", cda: 0 },
-  { id: "small", label: "Bolsa de sillín", cda: 0.004 },
-  { id: "bikepacking", label: "Bikepacking", cda: 0.022 },
-  { id: "panniers", label: "Alforjas", cda: 0.045 },
+  { id: "none", cda: 0 },
+  { id: "small", cda: 0.004 },
+  { id: "bikepacking", cda: 0.022 },
+  { id: "panniers", cda: 0.045 },
 ];
 
 /* -------------------------------------------------------------- neumaticos */
 
 export interface TyreItem {
   id: string;
-  label: string;
   /** Coeficiente de rodadura sobre asfalto en buen estado. */
   crr: number;
-  note?: string;
 }
 
 /**
@@ -111,12 +110,12 @@ export interface TyreItem {
  * alta). Se aplica luego un factor por el firme real de la ruta.
  */
 export const TYRES: TyreItem[] = [
-  { id: "race-tl", label: "Competición tubeless 25-28", crr: 0.0038, note: "GP5000 S TR, Corsa Pro TLR, Turbo Cotton" },
-  { id: "race", label: "Carretera rápida 25-28", crr: 0.0045, note: "GP5000 con cámara, Corsa N.EXT" },
-  { id: "training", label: "Entreno / antipinchazos", crr: 0.006, note: "GP4-Season, Gatorskin, Marathon" },
-  { id: "gravel-fast", label: "Gravel liso 35-40", crr: 0.0075, note: "Pathfinder, Terra Speed" },
-  { id: "gravel-knob", label: "Gravel tacos 40-45", crr: 0.0105, note: "Terra Trail, Riddler" },
-  { id: "mtb", label: "MTB", crr: 0.014 },
+  { id: "race-tl", crr: 0.0038 },
+  { id: "race", crr: 0.0045 },
+  { id: "training", crr: 0.006 },
+  { id: "gravel-fast", crr: 0.0075 },
+  { id: "gravel-knob", crr: 0.0105 },
+  { id: "mtb", crr: 0.014 },
 ];
 
 /** Multiplicador de Crr segun el firme predominante de la ruta. */
@@ -253,12 +252,20 @@ export function defaultDraftFraction(groupSize: number): number {
 /**
  * Guia de Coggan sobre que factor de intensidad aguanta cada duracion. Sirve
  * para avisar cuando alguien pone un IF que no va a sostener tres horas.
+ * Devuelve las cifras; el texto lo pone quien lo pinta, en su idioma.
  */
-export function intensitySanity(intensity: number, hours: number): string | null {
+export function intensitySanity(
+  intensity: number,
+  hours: number
+): { intensity: string; hours: string; ceiling: string } | null {
   const ceiling =
     hours <= 1 ? 1.0 : hours <= 2 ? 0.88 : hours <= 3 ? 0.83 : hours <= 5 ? 0.78 : 0.72;
   if (intensity > ceiling + 0.04) {
-    return `Un IF de ${intensity.toFixed(2)} durante ${hours.toFixed(1)} h es de récord. Para esa duración lo sostenible ronda ${ceiling.toFixed(2)}.`;
+    return {
+      intensity: intensity.toFixed(2),
+      hours: hours.toFixed(1),
+      ceiling: ceiling.toFixed(2),
+    };
   }
   return null;
 }

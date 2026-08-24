@@ -17,9 +17,11 @@
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.3",
+    "@vercel/analytics": "^2.0.1",
     "maplibre-gl": "^6.3.0",
     "next": "^16.3.1",
     "next-auth": "^5.0.0-beta.32",
+    "next-intl": "^4.13.7",
     "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

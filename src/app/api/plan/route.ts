@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
+import { pickLocale, serverI18n } from "@/lib/i18nServer";
 import { plan } from "@/lib/planner";
+import { clientIp, rateLimit } from "@/lib/rateLimit";
+import { WeatherRateLimited } from "@/lib/wind";
 import type { PlanRequest, Shape, Surface, WindMode } from "@/lib/types";
+
+// Cada plan gasta hasta 8 peticiones de enrutado contra un cupo diario
+// compartido (2.000/dia en ORS). 20 por minuto deja de sobra para alguien
+// jugueteando con los controles, y corta a un script en bucle mucho antes
+// de que se note en el cupo.
+const PLAN_LIMIT = 20;
+const PLAN_WINDOW_MS = 60_000;
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -48,25 +58,30 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "JSON invalido" }, { status: 400 });
+    body = {};
+  }
+  const i18n = await serverI18n(pickLocale(body?.locale));
+  const { t } = i18n;
+
+  const ip = clientIp(request);
+  const rl = rateLimit(`plan:${ip}`, PLAN_LIMIT, PLAN_WINDOW_MS);
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: t("tooManyPlans") },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterS) } }
+    );
   }
 
   if (!isLonLat(body.start)) {
-    return NextResponse.json({ error: "Falta el punto de salida" }, { status: 400 });
+    return NextResponse.json({ error: t("missingStart") }, { status: 400 });
   }
   const shape: Shape = SHAPES.includes(body.shape) ? body.shape : "circular";
   if (shape === "lineal" && !isLonLat(body.end)) {
-    return NextResponse.json(
-      { error: "Una ruta lineal necesita punto de llegada" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: t("missingEnd") }, { status: 400 });
   }
   const distanceKm = Number(body.distanceKm);
   if (!Number.isFinite(distanceKm) || distanceKm < 5 || distanceKm > 400) {
-    return NextResponse.json(
-      { error: "La distancia debe estar entre 5 y 400 km" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: t("badDistance") }, { status: 400 });
   }
 
   const req: PlanRequest = {
@@ -96,17 +111,16 @@ export async function POST(request: Request) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(new Error("deadline")), 38_000);
   try {
-    const result = await plan(req, ac.signal);
+    const result = await plan(req, ac.signal, i18n);
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof WeatherRateLimited) {
+      return NextResponse.json({ error: t("weatherRateLimited") }, { status: 429 });
+    }
     const message = err instanceof Error ? err.message : String(err);
     const abortado = ac.signal.aborted || /abort/i.test(message);
     return NextResponse.json(
-      {
-        error: abortado
-          ? "Los servidores de rutas están tardando demasiado. Prueba otra vez, o con menos distancia."
-          : message,
-      },
+      { error: abortado ? t("routersSlow") : message },
       { status: abortado ? 504 : 502 }
     );
   } finally {

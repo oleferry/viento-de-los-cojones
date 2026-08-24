@@ -4,6 +4,10 @@
   "functions": {
     "src/app/api/plan/route.ts": { "maxDuration": 60 },
     "src/app/api/geocode/route.ts": { "maxDuration": 15 },
-    "src/app/api/diag/route.ts": { "maxDuration": 60 }
-  }
+    "src/app/api/diag/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/wind-digest/route.ts": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/cron/wind-digest", "schedule": "0 6,12 * * *" }
+  ]
 }
