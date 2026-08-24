@@ -17,6 +17,12 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://ondivento.com";
  * activado y manda un correo cuando encuentra una buena ventana de viento en
  * lo que queda del dia. Protegido por CRON_SECRET — Vercel lo manda solo en
  * las llamadas propias del cron, nunca en una peticion de fuera.
+ *
+ * Se ejecuta UNA vez al dia (06:00 UTC, sobre las 8 en Madrid). No es un
+ * capricho: el plan Hobby de Vercel rechaza el despliegue entero si el cron
+ * corre mas de una vez al dia. Con una pasada basta, porque `findWindWindow`
+ * mira 36 h por delante, asi que el aviso de la manana ya cubre tambien la
+ * tarde y el dia siguiente.
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
