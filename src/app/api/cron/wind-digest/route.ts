@@ -48,15 +48,21 @@ export async function GET(request: Request) {
 
       const locale = pickLocale(c.locale);
       const t = await getTranslations({ locale, namespace: "Email" });
-      const hour = new Date(window.departure).toLocaleString(
-        locale === "en" ? "en-GB" : "es-ES",
-        {
-          timeZone: "Europe/Madrid",
-          weekday: "long",
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      );
+
+      // Dia y hora van SEPARADOS, no en un solo hueco: juntandolos salia
+      // "sobre las miércoles, 17:00", que no es castellano. Asi cada idioma
+      // los une como le corresponde.
+      const bcp47 = locale === "en" ? "en-GB" : "es-ES";
+      const cuando = new Date(window.departure);
+      const day = cuando.toLocaleDateString(bcp47, {
+        timeZone: "Europe/Madrid",
+        weekday: "long",
+      });
+      const time = cuando.toLocaleTimeString(bcp47, {
+        timeZone: "Europe/Madrid",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
       const minutes = Math.round(-window.windCostS / 60);
       // `markup` y no `rich`: esto es una cadena de HTML para un correo, no
       // un arbol de React.
@@ -64,7 +70,7 @@ export async function GET(request: Request) {
 
       const html = `
         <p>${t.markup("intro", { route: c.routeName, b: bold })}</p>
-        <p>${t.markup("body", { hour, minutes, b: bold })}</p>
+        <p>${t.markup("body", { day, time, minutes, b: bold })}</p>
         <p><a href="${SITE_URL}/${locale}">${t("cta")}</a></p>
         <p style="color:#888;font-size:0.8em">${t("why")}</p>
       `;

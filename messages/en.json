@@ -143,7 +143,7 @@
   "Email": {
     "subject": "Good wind today for \"{route}\"",
     "intro": "There's good wind today for <b>{route}</b>.",
-    "body": "It's worth heading out around <b>{hour}</b>: the air saves you about {minutes} minutes compared to a still day.",
+    "body": "It's worth heading out <b>{day} at {time}</b>: the air saves you about {minutes} minutes compared to a still day.",
     "cta": "Open in Ondivento",
     "why": "You're getting this because you turned on alerts for this route. You can switch it off under \"My routes\" in the app."
   },

@@ -143,7 +143,7 @@
   "Email": {
     "subject": "Hoy toca buen viento para «{route}»",
     "intro": "Hoy toca buen viento para <b>{route}</b>.",
-    "body": "Sale a cuenta salir sobre las <b>{hour}</b>: el aire te ahorra unos {minutes} minutos frente a un día en calma.",
+    "body": "Sale a cuenta salir el <b>{day} a las {time}</b>: el aire te ahorra unos {minutes} minutos frente a un día en calma.",
     "cta": "Ver en Ondivento",
     "why": "Recibes esto porque activaste el aviso para esta ruta. Se apaga desde «Mis rutas» en la app."
   },
