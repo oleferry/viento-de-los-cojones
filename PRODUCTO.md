@@ -62,6 +62,7 @@ salir.
   qué sentido
 - **Perfil de ciclista** afinable: cuerpo, bici, material, grupo con quien sale
 - **Descarga el GPX** con la hora estimada de paso por cada punto
+- **Comparte la ruta** por enlace, con vista previa en WhatsApp y redes
 - **Avisos por correo**: "hoy toca buen viento para tu ruta"
 - **Se instala como app** en el móvil y abre sin cobertura
 - **Español e inglés**
@@ -70,6 +71,33 @@ salir.
 solo añade llevarse el perfil y las rutas de un dispositivo a otro. Es una
 decisión deliberada, y da un argumento de venta honesto: *una herramienta que te
 dice si vas a comer viento no puede pedirte que te registres para usarla*.
+
+### Compartir: la pieza que importa para crecer
+
+Merece explicación aparte porque es el único mecanismo de difusión que tiene hoy
+el producto.
+
+Al pulsar **Compartir** se genera un enlace con el trazado exacto. Quien lo
+recibe no ve una postal: **abre la ruta simulada con el viento de hoy y con su
+propio perfil de ciclista**. Es decir, el enlace no envejece — la misma ruta
+compartida en marzo sigue contestando "¿a qué hora la hago?" en octubre.
+
+Tres cosas relevantes para marketing:
+
+- **Ni quien comparte ni quien abre necesitan cuenta.** Cero fricción en los dos
+  extremos de la cadena, que es justo donde se pierde la gente.
+- **Al pegarlo en WhatsApp o X sale una tarjeta** con la forma real del trazado,
+  los kilómetros y el desnivel. Un enlace con imagen se propaga; uno de texto
+  plano, no.
+- **El enlace es la demo.** Alguien que nunca ha oído hablar de Ondivento entra
+  por una ruta concreta que le ha pasado un amigo, y lo primero que ve es el
+  producto funcionando sobre algo que le interesa. Es mejor puerta de entrada que
+  cualquier página de aterrizaje.
+
+Lo que **no** hace todavía: la tarjeta no muestra el peaje del aire, solo forma,
+distancia y desnivel. Es deliberado — esa imagen la pide el servidor de WhatsApp
+y calcular el viento ahí la haría lenta. Si en algún momento interesa una imagen
+más vendedora, se puede hacer, pero es trabajo aparte.
 
 ## 4. Cómo funciona (lo justo para hablar con propiedad)
 
@@ -166,6 +194,7 @@ español, italiano y como marca neutra en inglés.
 | Cuentas (Google y enlace por correo) | ✅ |
 | Guardar rutas y bicis | ✅ |
 | Avisos de viento por correo | ✅ |
+| **Compartir una ruta por enlace, con imagen de vista previa** | ✅ |
 | Instalable como app, funciona sin cobertura | ✅ |
 | Privacidad y términos publicados | ✅ |
 | Analítica de uso | ✅ |
@@ -173,8 +202,6 @@ español, italiano y como marca neutra en inglés.
 **Lo que no hay todavía:**
 
 - **Usuarios reales.** Cero. Nunca se ha anunciado.
-- **Imagen para compartir** una ruta en redes. Pendiente, y es probablemente la
-  primera pieza de crecimiento que hace falta.
 - **Exportar a TCX/FIT** (ahora solo GPX).
 - **Integración con Strava/Komoot.** No existe.
 - **Detección automática de FTP** desde ficheros de actividad.
@@ -224,8 +251,23 @@ probablemente un banner de consentimiento**, lo que empeora el producto. Merece
 una conversación antes de asumir que se pueden meter las herramientas de
 marketing habituales.
 
+> **Un matiz que conviene tener claro antes de vender privacidad como bandera.**
+> Hasta que llegó compartir, la app no guardaba absolutamente nada de quien no
+> tuviera cuenta. Ahora hay una excepción: si pulsas *Compartir*, esa ruta se
+> guarda en el servidor, porque es lo que hace que el enlace funcione. La
+> política de privacidad ya lo dice, y advierte además de que el punto de salida
+> de una ruta dice bastante de dónde vives. El mensaje sigue siendo fuerte —
+> *sin publicidad, sin rastreo, sin cuenta obligatoria* — pero **no** se puede
+> escribir "no guardamos nada" a secas.
+
 Lo que sí se puede medir sin tocar nada: rutas planificadas, cuentas creadas,
-rutas guardadas, avisos activados. Son datos propios del producto.
+rutas guardadas, avisos activados y **rutas compartidas**. Son datos propios del
+producto.
+
+Compartir es además la métrica más útil que hay ahora mismo, porque se puede
+medir el circuito entero: cuántos enlaces se generan, cuántas visitas llegan a
+`/r/…`, y cuántas de esas acaban planificando una ruta propia. Eso es un embudo
+de difusión real, no una métrica de vanidad.
 
 ## 10. Vocabulario
 
@@ -257,8 +299,10 @@ Ordenadas por lo que bloquean:
    técnica.
 3. **¿Cuánto presupuesto de infraestructura hay?** Determina cuánta gente puede
    entrar a la vez sin que se degrade.
-4. **¿Qué se hace con el crecimiento?** Hoy no hay forma de que un usuario
-   comparta una ruta con imagen. Es el hueco más obvio.
+4. **¿Cómo se siembra el primer puñado de enlaces?** El mecanismo de difusión ya
+   existe y funciona, pero solo se activa si alguien comparte, y hoy no hay
+   nadie. Un club, un grupo de WhatsApp de una zona ventosa o media docena de
+   rutas buenas ya compartidas de antemano bastan para arrancarlo.
 
 ---
 
