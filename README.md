@@ -20,8 +20,13 @@ Nacido en Tierra de Campos, donde el aire es una variable de entrenamiento.
 | **Carretera, camino o mixto** | Perfiles de enrutado distintos y, con OpenRouteService, reparto real de firme (% asfalto). |
 | **Volver a favor / palo primero / menos esfuerzo** | Tres funciones objetivo distintas sobre la misma simulación. |
 | **Mejor hora de salida** | Evalúa cada hora dentro del margen que le des y ordena por el peaje que te va a cobrar el viento. |
+| **Pronóstico a 5 días** | La misma ruta evaluada en cada hora de luz de los próximos días. No cuesta ni una petición extra de enrutado, así que sale gratis y contesta la pregunta de verdad: no "¿hoy?", sino "¿cuándo?". |
+| **Tu propia ruta** | Importa un GPX, TCX o KML y te dice a qué hora hacerla y en qué sentido, sin trazar nada. El fichero se lee en el navegador; al servidor solo van las coordenadas. |
 | **Sentido de la marcha** | El mismo bucle en sentido contrario es otra ruta a efectos de viento: se evalúan los dos. |
 | **GPX con horas de paso** | Exporta la ruta con `<time>` en cada punto, así el Garmin o el Wahoo te dan la hora estimada de cada tramo. |
+| **Aviso por correo** | Para rutas guardadas: un correo cuando aparece una buena ventana de viento. Ver [más abajo](#avisos-de-viento-por-correo). |
+| **Español e inglés** | Interfaz, avisos del servidor y correos. Ver [más abajo](#español-e-inglés). |
+| **Se instala como app** | Trabajador de servicio propio: abre al instante y funciona sin cobertura, que en Tierra de Campos pasa. La previsión y la API **nunca** se cachean. |
 
 ## Cómo decide
 
@@ -185,9 +190,90 @@ Los proveedores se encienden solos según las credenciales que existan: con los
 dos configurados salen los dos botones, con uno sale uno, y sin ninguno la
 página de acceso lo dice en vez de fallar.
 
+La clave de Resend sirve para **dos cosas**: el enlace de acceso y los avisos de
+viento. Para estos últimos hace falta además `CRON_SECRET` (ver
+[abajo](#avisos-de-viento-por-correo)).
+
 Se guardan **el perfil** (cuerpo y motor), **las bicis** (cada una con su CdA y
 su Crr, porque la de carretera y la de gravel no tienen nada que ver) y **las
 rutas**, trazadas o importadas.
+
+## Avisos de viento por correo
+
+Con cuenta, cada ruta guardada tiene una campana. Encendida, un trabajo en
+segundo plano revisa el pronóstico y escribe cuando aparece una buena ventana.
+
+Lo que lo hace barato: **no traza nada**. Reutiliza la geometría ya guardada y
+la vuelve a simular con `computeOutlook()`, la misma función que usa el
+planificador en vivo. Cero peticiones de enrutado, solo la del viento.
+
+El umbral es **doble a propósito**: avisa si la ventana ahorra al menos **5
+minutos Y al menos un 8%** del tiempo en calma. Con un solo criterio se
+desmadra por un lado o por el otro — una ruta corta dispararía por cuarenta
+segundos, y una de 200 km por un 1% que nadie nota.
+
+Se mira **36 horas por delante**, no los 5 días del pronóstico: el aviso es de
+"hoy toca buen viento", no una newsletter. Y no repite antes de **4 días** sobre
+la misma ruta.
+
+El correo va en el idioma de la persona, que se anota al encender la campana —
+el único momento en el que sabemos con certeza que va a recibir correo nuestro.
+
+```jsonc
+// vercel.json
+"crons": [{ "path": "/api/cron/wind-digest", "schedule": "0 6 * * *" }]
+```
+
+> **Una vez al día, y no es una preferencia.** El plan Hobby de Vercel rechaza
+> el despliegue **entero** si el cron corre más veces, y falla al validar
+> `vercel.json` antes de que exista siquiera un registro de despliegue: no
+> aparece como error, simplemente no despliega nada. Con una pasada basta,
+> porque mirando 36 h por delante la de la mañana ya cubre la tarde y el día
+> siguiente.
+
+El endpoint se protege con `CRON_SECRET`, que Vercel manda solo en sus propias
+llamadas. **Sin definirlo el endpoint queda abierto en vez de fallar**, así que
+en producción hay que ponerlo. Sin base de datos o sin clave de Resend se
+desactiva solo y responde `{"skipped": true}`.
+
+## Español e inglés
+
+Las rutas llevan el idioma delante: `/es` y `/en`. La raíz redirige según el
+navegador, y hay un selector en el pie.
+
+Lo que no es evidente es que **también se traduce lo que genera el servidor**:
+los avisos de `meta.warnings`, las etiquetas de cada candidato ("Salida hacia
+SSE (150°)"), los errores de la API y los correos. El motor no sabe nada de
+next-intl: `plan()` y `analyze()` reciben un traductor y su idioma, y siguen
+siendo física y geometría.
+
+Dos cosas que no son texto y aun así cambian:
+
+- **Los puntos cardinales.** O de Oeste, W de West. `cardinal()` lleva las dos
+  tablas.
+- **El catálogo de material** salió entero de `equipment.ts` a los ficheros de
+  traducción, así que ese fichero se quedó solo con CdA y Crr, que es lo que le
+  corresponde.
+
+Las claves de `messages/es.json` y `messages/en.json` deben coincidir exactamente:
+una que falte no rompe el build, revienta en tiempo de ejecución.
+
+## Privacidad y límites de abuso
+
+Hay páginas de [privacidad](https://ondivento.com/es/privacidad) y
+[términos](https://ondivento.com/es/terminos), y son honestas sobre lo que de
+verdad pasa: sin cuenta no se guarda nada en el servidor, y se enumera qué
+recibe cada tercero.
+
+Solo hay dos cookies, las dos funcionales: la de sesión y la de idioma. Nada de
+publicidad ni de rastreo entre webs. La analítica es la de Vercel: agregada y
+anónima.
+
+`/api/plan` está limitado a **20 peticiones por minuto y IP**, y `/api/geocode` a
+**30**. Es un limitador en memoria, deliberadamente **oportunista y no fiable**:
+en serverless cada instancia lleva su propia cuenta, así que no sirve como
+control de acceso. Sirve para lo que se puso, que es que un script en bucle no
+se coma el cupo diario de OpenRouteService.
 
 ## Poner en marcha
 
@@ -198,6 +284,22 @@ npm run dev
 ```
 
 Clave gratuita de OpenRouteService en <https://openrouteservice.org/dev/#/signup>.
+
+Antes de subir nada:
+
+```bash
+npm run typecheck
+npm run build
+```
+
+Es exactamente lo que corre la CI de GitHub Actions en cada push y cada PR
+contra `main` (`.github/workflows/ci.yml`). **Sin variables de entorno a
+propósito**: el build tiene que pasar limpio sin ninguna, que es justo el
+diseño — si algún día empieza a exigir una, la CI lo avisa.
+
+No hay ESLint: el proyecto nunca lo configuró y `next lint` está roto en
+Next 16 sin configuración. La CI comprueba tipos y build, y no finge lo
+contrario.
 
 ## Desplegar en Vercel
 
@@ -274,24 +376,51 @@ intercepta `Worker` y vuelca el estado interno del estilo.
 ## Estructura
 
 ```
+messages/
+  es.json  en.json      todo el texto de cara al usuario, en los dos idiomas
+
 src/
+  proxy.ts               reparto por idioma (el "middleware" de Next 16)
+  i18n/
+    routing.ts           idiomas y prefijos
+    request.ts  navigation.ts
   app/
-    api/plan/route.ts      validación + orquestación
-    api/geocode/route.ts   búsqueda de lugares (Pelias o Nominatim)
-    page.tsx  layout.tsx  globals.css  icon.svg  opengraph-image.tsx
+    [locale]/            todo lo que ve el usuario cuelga del idioma
+      page.tsx  layout.tsx  entrar/  privacidad/  terminos/
+    api/plan/route.ts    validación + orquestación
+    api/analyze/route.ts simula una ruta importada, sin enrutar
+    api/geocode/route.ts búsqueda de lugares (Pelias o Nominatim)
+    api/me  api/bikes  api/routes      cuenta, perfil, bicis y rutas
+    api/cron/wind-digest/route.ts      el aviso por correo
+    globals.css  icon.svg  manifest.ts  opengraph-image.tsx
   lib/
     geo.ts        haversine, rumbos, remuestreo, bucles poligonales
     physics.ts    balance de potencia, descomposición del viento, simulación
     wind.ts       Open-Meteo, campo de viento interpolable, altimetría
     routing.ts    ORS + OSRM tras la misma interfaz, geocodificación
     planner.ts    candidatos, barrido horario, puntuación y refinado
-    gpx.ts  format.ts  types.ts
+    analyze.ts    la otra mitad: simular una ruta que traes tú
+    digest.ts     decide si una ruta guardada merece un aviso
+    account.ts    perfil, bicis y rutas en Postgres
+    db.ts  auth.ts  email.ts  i18nServer.ts  rateLimit.ts
+    gpx.ts  gpxImport.ts  equipment.ts  format.ts  types.ts
   components/
     Planner.tsx   estado y formulario
     MapView.tsx   MapLibre: ruta coloreada por viento, flechas, popups
     RouteProfile.tsx  perfil de viento + velocidad + relieve
-    WindRose.tsx  HourStrip.tsx  PlaceInput.tsx
+    RiderSheet.tsx    perfil de ciclista y catálogo de material
+    TrackImport.tsx   leer GPX/TCX/KML en el navegador
+    SavedRoutes.tsx   rutas guardadas y la campana del aviso
+    WindRose.tsx  HourStrip.tsx  Outlook.tsx  PlaceInput.tsx
+    GroupPicker.tsx  AccountBar.tsx  LocaleSwitch.tsx  PWA.tsx
 ```
+
+Dos convenciones que conviene no romper:
+
+- **Ningún texto de cara al usuario vive en el código.** Ni en los componentes,
+  ni en los catálogos, ni en los errores de la API. Todo sale de `messages/`.
+- **`lib/` no sabe de React ni de next-intl.** Recibe datos y devuelve datos.
+  Por eso `planner.ts` se puede probar sin montar medio framework.
 
 ## Licencia
 
