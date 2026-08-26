@@ -65,7 +65,16 @@ function localInputValue(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(0)}`;
 }
 
-export default function Planner() {
+export default function Planner({
+  initialTrack,
+  initialSurface,
+  initialWindMode,
+}: {
+  /** Ruta con la que arrancar ya cargada: la usa la pagina de un enlace compartido. */
+  initialTrack?: ImportedTrack;
+  initialSurface?: Surface;
+  initialWindMode?: WindMode;
+} = {}) {
   const t = useTranslations("Planner");
   const locale = useLocale();
   const [startText, setStartText] = useState("");
@@ -73,13 +82,13 @@ export default function Planner() {
   const [endText, setEndText] = useState("");
   const [end, setEnd] = useState<LonLat | null>(null);
 
-  const [shape, setShape] = useState<Shape>("circular");
+  const [shape, setShape] = useState<Shape>(initialTrack ? "importada" : "circular");
   const [distanceKm, setDistanceKm] = useState(60);
-  const [surface, setSurface] = useState<Surface>("carretera");
-  const [windMode, setWindMode] = useState<WindMode>("tailwind_home");
+  const [surface, setSurface] = useState<Surface>(initialSurface ?? "carretera");
+  const [windMode, setWindMode] = useState<WindMode>(initialWindMode ?? "tailwind_home");
   const [setup, setSetup] = useState<RiderSetup>(DEFAULT_SETUP);
   const [group, setGroup] = useState<GroupSetup>(DEFAULT_GROUP);
-  const [track, setTrack] = useState<ImportedTrack | null>(null);
+  const [track, setTrack] = useState<ImportedTrack | null>(initialTrack ?? null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [departure, setDeparture] = useState(() => {
     const d = new Date();
@@ -794,7 +803,37 @@ export default function Planner() {
               onHover={setHoverKm}
               onPickHour={(iso) => run(Date.parse(iso))}
               busy={busy}
-              shareUrl={shareUrl}
+              onCompartir={async () => {
+                const nombre =
+                  shape === "importada" && track
+                    ? track.name
+                    : t("savedRouteName", {
+                        km: (shown.geometry.distanceM / 1000).toFixed(0),
+                        from: startText || t("here"),
+                      });
+                try {
+                  const res = await fetch("/api/share", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      name: nombre,
+                      coords: shown.geometry.coords,
+                      distanceM: shown.geometry.distanceM,
+                      ascentM: shown.geometry.ascentM ?? null,
+                      surface,
+                      windMode,
+                      locale,
+                    }),
+                  });
+                  const d = await res.json();
+                  if (d.id) return `${window.location.origin}/${locale}/r/${d.id}`;
+                } catch {
+                  /* se cae al enlace de parametros */
+                }
+                // Sin base de datos no hay ruta que publicar, pero el enlace de
+                // siempre sigue sirviendo: lleva la busqueda, no el trazado.
+                return shareUrl;
+              }}
               intensityWarning={intensitySanity(
                 setup.intensity,
                 shown.evaluation.timeS / 3600
@@ -982,7 +1021,7 @@ function Results({
   onHover,
   onPickHour,
   busy,
-  shareUrl,
+  onCompartir,
   intensityWarning,
   guardar,
 }: {
@@ -993,11 +1032,13 @@ function Results({
   onHover: (km: number | null) => void;
   onPickHour: (iso: string) => void;
   busy: boolean;
-  shareUrl: string;
+  /** Devuelve el enlace a copiar. Publica la ruta; si no puede, cae al de parametros. */
+  onCompartir: () => Promise<string>;
   intensityWarning: ReturnType<typeof intensitySanity>;
   /** Solo con sesion: guardar la ruta en la cuenta. */
   guardar?: { estado: "no" | "si" | "hecho"; onGuardar: () => void };
 }) {
+  const [compartiendo, setCompartiendo] = useState(false);
   const [copied, setCopied] = useState(false);
   const t = useTranslations("Planner");
   const tWind = useTranslations("Wind");
@@ -1196,17 +1237,28 @@ function Results({
         </button>
         <button
           className="btn flex-1"
+          disabled={compartiendo}
           onClick={async () => {
+            setCompartiendo(true);
             try {
-              await navigator.clipboard.writeText(shareUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1800);
+              const url = await onCompartir();
+              // El navegador solo abre la hoja de compartir del sistema si la
+              // pide un gesto de verdad; si no hay, se copia y ya.
+              if (navigator.share) {
+                await navigator.share({ title: shown.label, url });
+              } else {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1800);
+              }
             } catch {
-              /* sin portapapeles */
+              /* cancelado, o sin portapapeles */
+            } finally {
+              setCompartiendo(false);
             }
           }}
         >
-          {copied ? t("copied") : t("copyLink")}
+          {compartiendo ? t("sharing") : copied ? t("copied") : t("share")}
         </button>
       </div>
 

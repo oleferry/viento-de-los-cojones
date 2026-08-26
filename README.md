@@ -24,6 +24,7 @@ Nacido en Tierra de Campos, donde el aire es una variable de entrenamiento.
 | **Tu propia ruta** | Importa un GPX, TCX o KML y te dice a qué hora hacerla y en qué sentido, sin trazar nada. El fichero se lee en el navegador; al servidor solo van las coordenadas. |
 | **Sentido de la marcha** | El mismo bucle en sentido contrario es otra ruta a efectos de viento: se evalúan los dos. |
 | **GPX con horas de paso** | Exporta la ruta con `<time>` en cada punto, así el Garmin o el Wahoo te dan la hora estimada de cada tramo. |
+| **Compartir** | Publica el trazado exacto en un enlace y lo abre quien quieras, sin cuenta ni por tu parte ni por la suya. Ver [más abajo](#compartir-una-ruta). |
 | **Aviso por correo** | Para rutas guardadas: un correo cuando aparece una buena ventana de viento. Ver [más abajo](#avisos-de-viento-por-correo). |
 | **Español e inglés** | Interfaz, avisos del servidor y correos. Ver [más abajo](#español-e-inglés). |
 | **Se instala como app** | Trabajador de servicio propio: abre al instante y funciona sin cobertura, que en Tierra de Campos pasa. La previsión y la API **nunca** se cachean. |
@@ -235,6 +236,44 @@ El endpoint se protege con `CRON_SECRET`, que Vercel manda solo en sus propias
 llamadas. **Sin definirlo el endpoint queda abierto en vez de fallar**, así que
 en producción hay que ponerlo. Sin base de datos o sin clave de Resend se
 desactiva solo y responde `{"skipped": true}`.
+
+## Compartir una ruta
+
+El botón **Compartir** publica la ruta en `/{idioma}/r/{id}` y copia el enlace
+(o abre la hoja del sistema, si el navegador la tiene).
+
+La distinción que importa: el enlace viejo, el de parámetros, compartía la
+**búsqueda** — salida, distancia, firme, estrategia — así que quien lo abría
+volvía a trazar y podía acabar con **otro trazado**, porque el viento había
+cambiado y el planificador elige candidato según el viento del momento. El
+enlace nuevo comparte la **ruta**: guarda una copia congelada de la geometría
+en la tabla `shares`.
+
+La página de destino no es una vista aparte: es el planificador entero
+arrancado en modo "ruta importada" con esa geometría. Así quien la recibe la ve
+simulada **con el viento de hoy y con su propio perfil de ciclista**, que es lo
+que hace útil el enlace en vez de ser una postal.
+
+`shares` es una tabla aparte de `routes` a propósito: es una copia inmutable y
+publicada, sin dueño obligatorio, no la biblioteca de nadie. El `user_id` solo
+se anota si quien comparte tenía cuenta, y con `on delete set null`, para que
+borrar la cuenta no rompa un enlace que ya está por ahí circulando.
+
+**Se puede compartir sin cuenta**, y eso tiene dos consecuencias que no son
+gratis:
+
+- Es el único endpoint que acepta **escrituras anónimas**, así que lleva un
+  límite más estricto que el resto: 10 por minuto y IP.
+- Obliga a guardar en el servidor rutas de gente sin cuenta, cosa que la página
+  de privacidad prometía que no pasaba. **Está reescrita**: dice qué se guarda,
+  que cualquiera con el enlace lo ve, y avisa de que el punto de salida de una
+  ruta dice bastante de dónde vives.
+
+La imagen de vista previa se genera en `opengraph-image.tsx`: dibuja la forma
+real del trazado, corrigiendo la longitud por el coseno de la latitud — sin eso
+una ruta de Castilla sale estirada a lo ancho. **No simula el viento**: esas
+imágenes las pide el servidor de WhatsApp, no una persona esperando, y una
+llamada a la previsión ahí dentro sería lenta para nada.
 
 ## Español e inglés
 

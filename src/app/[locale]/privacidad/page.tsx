@@ -70,6 +70,16 @@ export default async function Privacidad({
           <p className="mt-2">{t.rich("accountDelete", { mail: () => <Mail /> })}</p>
         </Section>
 
+        <Section title={t("shareTitle")}>
+          <p>{t.rich("shareIntro", { b: strong })}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>{t.rich("shareWhat", { b: strong })}</li>
+            <li>{t.rich("shareWho", { b: strong })}</li>
+            <li>{t.rich("shareCare", { b: strong })}</li>
+            <li>{t.rich("shareDelete", { b: strong, mail: () => <Mail /> })}</li>
+          </ul>
+        </Section>
+
         <Section title={t("thirdTitle")}>
           <p>{t("thirdIntro")}</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">

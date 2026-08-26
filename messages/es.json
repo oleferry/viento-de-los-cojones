@@ -69,7 +69,7 @@
     "whoTitle": "Quién trata los datos",
     "whoBody": "Ondivento es un proyecto personal de Daniel Paniagua. Para cualquier duda o para ejercer tus derechos sobre tus datos, escribe a <mail></mail>.",
     "noAccountTitle": "Planificar una ruta no pide ni guarda tu identidad",
-    "noAccountBody": "Esto es lo primero porque es lo que de verdad importa: puedes trazar rutas, ver el pronóstico y exportar el GPX <b>sin crear cuenta</b>. El punto de salida, la distancia y las coordenadas de la ruta se mandan a nuestro servidor solo para calcular el trazado y se reenvían a los proveedores de mapas y meteorología de abajo — no se guardan en ninguna base de datos ligados a ti. Tu perfil de ciclista (altura, peso, FTP, bici) se queda guardado en tu propio navegador, no en nuestros servidores, salvo que decidas crear cuenta.",
+    "noAccountBody": "Esto es lo primero porque es lo que de verdad importa: puedes trazar rutas, ver el pronóstico y exportar el GPX <b>sin crear cuenta</b>. El punto de salida, la distancia y las coordenadas de la ruta se mandan a nuestro servidor solo para calcular el trazado y se reenvían a los proveedores de mapas y meteorología de abajo — no se guardan en ninguna base de datos ligados a ti. Tu perfil de ciclista (altura, peso, FTP, bici) se queda guardado en tu propio navegador, no en nuestros servidores, salvo que decidas crear cuenta. <b>La única excepción es que pulses «Compartir»</b>: eso guarda una copia de esa ruta a propósito, porque es justo lo que hace que el enlace funcione. Te lo explicamos entero más abajo.",
     "accountTitle": "Si creas una cuenta",
     "accountIntro": "La cuenta es opcional y sirve para llevar tu perfil, tus bicis y tus rutas de un dispositivo a otro. Al crearla guardamos:",
     "accountIdentity": "<b>Identidad básica</b>: tu correo, y si entras con Google, tu nombre y foto de perfil tal como te los pasa Google. Si entras por enlace de correo, solo tu dirección.",
@@ -88,7 +88,13 @@
     "cookiesTitle": "Cookies",
     "cookiesBody": "Solo las estrictamente funcionales: la de <b>sesión</b>, para mantenerte dentro si tienes cuenta, y la de <b>idioma</b>, para recordar si prefieres español o inglés. Nada de publicidad ni de rastreo entre webs.",
     "rightsTitle": "Tus derechos",
-    "rightsBody": "Acceso, rectificación, portabilidad y supresión de tus datos, conforme al RGPD. Escribe a <mail></mail> y se atiende directamente, sin intermediarios — esto es un proyecto de una persona, no de una empresa con departamento de soporte."
+    "rightsBody": "Acceso, rectificación, portabilidad y supresión de tus datos, conforme al RGPD. Escribe a <mail></mail> y se atiende directamente, sin intermediarios — esto es un proyecto de una persona, no de una empresa con departamento de soporte.",
+    "shareTitle": "Rutas que compartes por enlace",
+    "shareIntro": "Compartir <b>no exige cuenta</b>. Al pulsar «Compartir» se guarda una copia congelada de esa ruta en nuestro servidor y se genera un enlace. Sin esa copia, quien lo abriese vería un trazado distinto, porque el viento habría cambiado.",
+    "shareWhat": "<b>Qué se guarda</b>: el nombre de la ruta, sus coordenadas, la distancia y el desnivel. Nada sobre ti. Si tienes cuenta se anota además que fue tuya, para que puedas reconocerla.",
+    "shareWho": "<b>Quién puede verla</b>: cualquiera que tenga el enlace. El identificador es largo y aleatorio, así que no se acierta probando, y las rutas compartidas no se listan ni se indexan en ningún sitio — pero <b>si pasas el enlace, quien lo reciba puede pasarlo a su vez</b>. Trátalo como público.",
+    "shareCare": "<b>Piénsatelo si sale de tu casa.</b> El punto de salida de una ruta dice bastante de dónde vives. Compartir una que arranca en tu portal es decisión tuya, pero conviene saberlo antes y no después.",
+    "shareDelete": "<b>Cuánto dura</b>: no caduca sola, para que un enlace que pasaste hace meses siga funcionando. Si quieres que se borre una ruta compartida, escribe a <mail></mail> con el enlace y se quita."
   },
   "Terms": {
     "pageTitle": "Términos · Ondivento",
@@ -138,7 +144,9 @@
     "bikeNeedsName": "La bici necesita un nombre",
     "tooManyBikes": "Ya tienes 12 bicis guardadas",
     "couldNotSave": "No se ha podido guardar",
-    "weatherRateLimited": "El servicio de meteorología está limitando las peticiones. Espera un minuto y vuelve a intentarlo."
+    "weatherRateLimited": "El servicio de meteorología está limitando las peticiones. Espera un minuto y vuelve a intentarlo.",
+    "tooManyShares": "Demasiadas rutas compartidas seguidas. Espera un poco.",
+    "shareUnavailable": "Compartir no está disponible en este despliegue."
   },
   "Email": {
     "subject": "Hoy toca buen viento para «{route}»",
@@ -247,7 +255,6 @@
     "candidateReturn": "vuelta {kmh} km/h {dir}",
     "downloadGPX": "Descargar GPX",
     "copied": "¡Copiado!",
-    "copyLink": "Copiar enlace",
     "saving": "Guardando…",
     "saved": "Guardada en tu cuenta",
     "saveRoute": "Guardar ruta",
@@ -257,7 +264,9 @@
     "howDensity": "Densidad del aire media en ruta <n>{rho} kg/m³</n> ({tempC} °C, {hpa} hPa, {rh}% de humedad). Frente a los 1,225 estándar a nivel del mar, aquí el aire pesa un {pct}% {cmp}.",
     "less": "menos",
     "more": "más",
-    "howDraft": "Rebufo: vas tapado el {frac}% del tiempo con un ahorro del {saving}%, y el beneficio se degrada tramo a tramo según lo angulado que entre el aire."
+    "howDraft": "Rebufo: vas tapado el {frac}% del tiempo con un ahorro del {saving}%, y el beneficio se degrada tramo a tramo según lo angulado que entre el aire.",
+    "share": "Compartir",
+    "sharing": "Creando enlace…"
   },
   "Rider": {
     "title": "Perfil de ciclista",
@@ -496,5 +505,11 @@
   "Profile": {
     "speed": "velocidad",
     "elevation": "relieve"
+  },
+  "Share": {
+    "metaTitle": "{name} · Ondivento",
+    "metaDescription": "{name}: {km} km trazados según el viento. Mira a qué hora conviene hacerla.",
+    "ogKicker": "Ruta compartida",
+    "ogTagline": "Ábrela en Ondivento y te dice a qué hora hacerla con el viento de hoy."
   }
 }
