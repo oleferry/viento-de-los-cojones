@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { alternatesFor } from "@/lib/seo";
 
 export async function generateMetadata({
   params,
@@ -8,7 +9,10 @@ export async function generateMetadata({
 }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Privacy" });
-  return { title: t("pageTitle") };
+  return {
+    title: t("pageTitle"),
+    alternates: alternatesFor(locale, "/privacidad"),
+  };
 }
 
 const MAIL = "privacidad@ondivento.com";

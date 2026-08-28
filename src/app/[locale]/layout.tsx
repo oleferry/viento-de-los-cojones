@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
+import { alternatesFor } from "@/lib/seo";
 import "../globals.css";
 
 export function generateStaticParams() {
@@ -42,9 +43,12 @@ export async function generateMetadata({
       title: "Ondivento",
       statusBarStyle: "black-translucent",
     },
-    alternates: {
-      languages: { es: "/es", en: "/en" },
-    },
+    // Valor de reserva, correcto solo para la portada. Cada página declara el
+    // suyo con `alternatesFor()` y tiene que seguir haciéndolo: Next.js
+    // **sustituye** este objeto entero cuando una página trae el suyo, no lo
+    // mezcla campo a campo. Una página nueva que no lo declare heredaría estas
+    // rutas y diría que es la portada.
+    alternates: alternatesFor(locale),
   };
 }
 
