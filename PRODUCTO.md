@@ -218,19 +218,23 @@ La app se apoya en servicios gratuitos con cupos diarios:
 | OpenRouteService | ~2.000 peticiones/día | Conmuta a servidores públicos, sin reparto de firme |
 | Open-Meteo | 10.000/día, **uso no comercial** | Deja de responder |
 | Vercel (plan Hobby) | Límites de plan gratuito | Ver abajo |
+| CARTO (mapa de fondo) | 5 M teselas/mes, **uso no comercial** | El mapa se queda sin carreteras dibujadas |
 
 **Cada ruta planificada consume entre 7 y 13 peticiones de enrutado**, medido
 sobre distancias de 30 a 120 km. Eso significa que el cupo de OpenRouteService
 da para unas **150-250 rutas al día**. Una campaña que traiga mil visitas en una
 tarde lo agota.
 
-**Dos cláusulas que hay que mirar antes de monetizar:**
+**Tres cláusulas que hay que mirar antes de monetizar:**
 
 1. **Open-Meteo gratuito es para uso no comercial.** Si Ondivento pasa a ser
    comercial, hace falta plan de pago.
 2. **El plan Hobby de Vercel es para uso no comercial.** Ya nos topamos con sus
    límites: solo permite **un cron al día**, por lo que el aviso de viento se
    manda una vez cada mañana y no dos.
+3. **El mapa de fondo de CARTO es gratuito para uso no comercial**, hasta 5
+   millones de teselas al mes. Una sola sesión de alguien mirando el mapa gasta
+   decenas de teselas, así que ese tope se acerca antes de lo que parece.
 
 > **Conclusión práctica:** el producto está listo para enseñarse, pero
 > **no está dimensionado para un lanzamiento masivo ni para cobrar**. Antes de

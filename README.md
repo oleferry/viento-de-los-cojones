@@ -149,7 +149,22 @@ de un modelo concreto es una estimación.
 | [BRouter](https://brouter.de/) | Enrutado ciclista con perfiles y altimetría | Gratis, sin clave |
 | [OpenRouteService](https://openrouteservice.org/) | Enrutado con desglose de firme | Gratis con clave (≈2.000 peticiones/día) |
 | [OSRM de FOSSGIS](https://routing.openstreetmap.de/) | Último recurso | Gratis, sin clave |
-| [CARTO](https://carto.com/attributions) + OpenStreetMap | Teselas del mapa | Gratis con atribución |
+| [CARTO](https://carto.com/attributions) + OpenStreetMap | Teselas del mapa | **Necesita clave.** Gratis, 5 M teselas/mes, uso no comercial |
+
+### El mapa de fondo necesita clave
+
+CARTO pasó a exigirla, y **no lo dice con un error**: sirve la tesela con una
+marca de agua *API KEY REQUIRED* y **sin casi ninguna carretera**. El mapa
+parece funcionar, y lo que se ve es la ruta cruzando el campo — la ruta va
+bien; lo que falta son las carreteras debajo. Costó verlo precisamente porque
+no falla nada.
+
+Se pide en <https://carto.com/basemaps/apikey>: sin cuenta, solo un formulario,
+y llega al momento. Va en `NEXT_PUBLIC_CARTO_KEY`, con prefijo público porque
+las teselas las pide el navegador — es pública por diseño, y por eso CARTO la
+ata al dominio que declares.
+
+Sin clave la app sigue funcionando, con el mapa degradado.
 
 El enrutado va **en cadena y conmuta solo**: si el primero se cae o satura, se
 pasa al siguiente en vez de tumbar el plan. Sin clave el orden es BRouter →

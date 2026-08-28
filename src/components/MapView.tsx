@@ -36,13 +36,27 @@ function styleFor(theme: MapTheme): StyleSpecification {
   // como error de CORS, que despista muchisimo.
   const slug = theme === "light" ? "rastertiles/voyager" : "dark_all";
   const bg = theme === "light" ? "#eef1f5" : "#080b11";
+
+  /*
+   * CARTO paso a exigir clave, y no lo dice con un error: sirve la tesela con
+   * una marca de agua "API KEY REQUIRED" y SIN casi ninguna carretera. El mapa
+   * parecia funcionar, y lo que se veia era una ruta cruzando el campo — la
+   * ruta iba bien, lo que faltaba eran las carreteras debajo.
+   *
+   * La clave va en el cliente por narices: las teselas las pide el navegador.
+   * Es publica por diseno, como cualquier clave de mapa web, y por eso CARTO
+   * la ata a un dominio.
+   */
+  const key = process.env.NEXT_PUBLIC_CARTO_KEY;
+  const q = key ? `?key=${encodeURIComponent(key)}` : "";
+
   return {
     version: 8,
     sources: {
       carto: {
         type: "raster",
         tiles: ["a", "b", "c"].map(
-          (s) => `https://${s}.basemaps.cartocdn.com/${slug}/{z}/{x}/{y}@2x.png`
+          (s) => `https://${s}.basemaps.cartocdn.com/${slug}/{z}/{x}/{y}@2x.png${q}`
         ),
         tileSize: 256,
         maxzoom: 19,
