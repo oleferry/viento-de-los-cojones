@@ -219,9 +219,10 @@ La app se apoya en servicios gratuitos con cupos diarios:
 | Open-Meteo | 10.000/día, **uso no comercial** | Deja de responder |
 | Vercel (plan Hobby) | Límites de plan gratuito | Ver abajo |
 
-**Cada ruta planificada consume hasta 8 peticiones de enrutado.** Eso significa
-que el cupo de OpenRouteService da para unas **250 rutas al día**. Una campaña
-que traiga mil visitas en una tarde lo agota.
+**Cada ruta planificada consume entre 7 y 13 peticiones de enrutado**, medido
+sobre distancias de 30 a 120 km. Eso significa que el cupo de OpenRouteService
+da para unas **150-250 rutas al día**. Una campaña que traiga mil visitas en una
+tarde lo agota.
 
 **Dos cláusulas que hay que mirar antes de monetizar:**
 

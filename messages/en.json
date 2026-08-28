@@ -146,7 +146,8 @@
     "couldNotSave": "Couldn't save",
     "weatherRateLimited": "The weather service is rate-limiting requests. Wait a minute and try again.",
     "tooManyShares": "Too many shared routes in a row. Give it a moment.",
-    "shareUnavailable": "Sharing isn't available on this deployment."
+    "shareUnavailable": "Sharing isn't available on this deployment.",
+    "distanceOff": "There's no loop of {pedido} km from there: the closest is {real} km. Try another distance, or start from somewhere else."
   },
   "Email": {
     "subject": "Good wind today for \"{route}\"",

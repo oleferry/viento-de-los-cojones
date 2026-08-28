@@ -77,6 +77,29 @@ Nacido en Tierra de Campos, donde el aire es una variable de entrenamiento.
    el último 35% de la ruta, ruta repetida y — si has pedido carretera — firme.
    Las tres estrategias son pesos distintos sobre esos mismos números.
 
+### La distancia se cumple, no se sugiere
+
+Si pides 75 km no vale darte 62. La tolerancia es del **8%**, y hacen falta
+tres piezas para sostenerla, porque cada una tapa un agujero distinto:
+
+- **El refinado** reescala el bucle y vuelve a trazarlo, hasta dos rondas,
+  usando lo que salió del intento anterior como realimentación. La relación
+  entre el tamaño del polígono y los kilómetros de carretera **no es monótona**
+  —encoger el polígono puede alargar la ruta— así que una sola corrección
+  proporcional no converge. Cada generador se reescala con el suyo: refinar un
+  bucle de ORS construyéndole un polígono da otra ruta distinta, no la misma
+  más corta.
+- **La penalización** ordena entre las que quedan. Con el peso que tenía antes
+  (1,2 sobre una escala de viento que vale 1,0) pedir 100 km y recibir 89 salía
+  penalizado con 0,03: al candidato corto le bastaba con ganar por un pelo en
+  viento, y se elegía 89 km existiendo uno de 107.
+- **El filtro duro** descarta lo que se pasa de tolerancia. Es la pieza que
+  faltaba: sin ella la penalización solo *desaconseja*, y el viento la tapaba.
+
+Si aun así ninguna llega —zona sin carreteras que cierren un bucle de esa
+medida, sobre todo pidiendo asfalto— se devuelve la más cercana **y se avisa
+con la cifra real**, en vez de callar y entregar otra cosa.
+
 ## Perfil de ciclista
 
 El tiempo estimado sale de un perfil que puedes afinar hasta donde quieras. Se

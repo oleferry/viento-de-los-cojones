@@ -5,7 +5,7 @@ import { clientIp, rateLimit } from "@/lib/rateLimit";
 import { WeatherRateLimited } from "@/lib/wind";
 import type { PlanRequest, Shape, Surface, WindMode } from "@/lib/types";
 
-// Cada plan gasta hasta 8 peticiones de enrutado contra un cupo diario
+// Cada plan gasta entre 7 y 13 peticiones de enrutado (medido) contra un cupo diario
 // compartido (2.000/dia en ORS). 20 por minuto deja de sobra para alguien
 // jugueteando con los controles, y corta a un script en bucle mucho antes
 // de que se note en el cupo.

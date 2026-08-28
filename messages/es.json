@@ -146,7 +146,8 @@
     "couldNotSave": "No se ha podido guardar",
     "weatherRateLimited": "El servicio de meteorología está limitando las peticiones. Espera un minuto y vuelve a intentarlo.",
     "tooManyShares": "Demasiadas rutas compartidas seguidas. Espera un poco.",
-    "shareUnavailable": "Compartir no está disponible en este despliegue."
+    "shareUnavailable": "Compartir no está disponible en este despliegue.",
+    "distanceOff": "Desde ahí no sale ningún bucle de {pedido} km: el que más se acerca son {real} km. Prueba otra distancia o muévete un pueblo."
   },
   "Email": {
     "subject": "Hoy toca buen viento para «{route}»",

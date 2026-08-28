@@ -41,6 +41,18 @@ import {
 const DETOUR_FACTOR = 1.12;
 const HEADING_STEP = 30;
 const MAX_REFINEMENTS = 3;
+/**
+ * Cuanto se acepta desviarse de la distancia pedida. Si pides 75 km, no vale
+ * darte 62: la distancia es de lo poco que el usuario dice EXPLICITAMENTE, y
+ * el viento no es excusa para ignorarla.
+ *
+ * Se hace cumplir en tres sitios, y hacen falta los tres: la penalizacion de
+ * la puntuacion ordena, el filtro duro descarta, y el refinado iterativo
+ * consigue que haya algo que no descartar.
+ */
+const DISTANCE_TOLERANCE = 0.08;
+/** Rondas de reescalado del poligono. Cada una cuesta peticiones de enrutado. */
+const MAX_REFINE_ROUNDS = 2;
 /** Longitud de los tramos en los que troceamos la ruta para simularla. */
 const SEGMENT_STEP_M = 400;
 /**
@@ -231,10 +243,24 @@ export async function plan(
     // de 80 km por un pico de 300 m es tirar el trabajo, y como el pico va y
     // viene por la misma carretera, quitarlo deja un recorrido valido.
     const limpias = trimSpurs(bruta.coords);
-    const geometry: RouteGeometry =
+    const recortada: RouteGeometry =
       limpias.length === bruta.coords.length
         ? bruta
         : { ...bruta, coords: limpias, distanceM: polylineLength(limpias) };
+
+    /*
+     * Pero el recorte NO puede comerse la ruta. Cuando el router devuelve un
+     * ir y volver por la misma carretera, quitar el desvio lo quita todo:
+     * quedaban dos puntos y cero metros, y como el filtro de distancia mira la
+     * geometria SIN recortar, el fantasma se colaba hasta el resultado. Pedir
+     * 30 km devolvia "0,0 km".
+     *
+     * Si el recorte se lleva mas de la mitad, es que el desvio era la ruta. Se
+     * conserva la original y que la penalicen el solape y los giros, que para
+     * eso estan: mejor una ruta mala y real que una perfecta e inexistente.
+     */
+    const geometry =
+      recortada.distanceM >= bruta.distanceM * 0.6 ? recortada : bruta;
 
     const fwd = resample(geometry.coords, SEGMENT_STEP_M);
     return {
@@ -425,8 +451,16 @@ export async function plan(
      * Poner los giros antes que el firme dejaba a "camino" sin caminos: se
      * descartaban las rutas de tierra por un giro y quedaba una de asfalto.
      */
+    /*
+     * El margen es ancho porque aqui todavia no se ha refinado, pero no TANTO
+     * como antes: con el 0,25 de partida, pedir 120 km dejaba pasar un bucle de
+     * 80, y como el filtro de firme que viene despues se queda con el menos
+     * embarrado, ese 80 se convertia en el unico superviviente y ya no habia
+     * nada mejor que refinar. Filtrando antes por distancia, el firme decide
+     * entre rutas que al menos miden lo que se pidio.
+     */
     const enDistancia = shapes.filter(
-      (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.25
+      (s) => Math.abs(s.geometry.distanceM - targetM) / targetM <= 0.15
     );
     if (enDistancia.length >= 2) quedarse(enDistancia);
 
@@ -617,10 +651,16 @@ export async function plan(
         default: // tailwind_home
           s.score = 0.35 * nt + 0.65 * (1 - nh);
       }
-      // Penalizacion suave por desviarse de la distancia pedida (solo circulares).
+      /*
+       * Desviarse de la distancia pedida (solo circulares). El peso es alto a
+       * proposito: con el 1,2 de antes, pedir 100 km y recibir 89 salia
+       * penalizado con 0,03 sobre una escala de viento que vale 1,0, asi que
+       * al candidato corto le bastaba con ganar por un pelo en viento. Se
+       * elegia 89 km existiendo uno de 107 dentro de tolerancia.
+       */
       if (req.shape === "circular") {
         const dev = Math.abs(s.shape.geometry.distanceM - targetM) / targetM;
-        s.score += Math.max(0, dev - 0.08) * 1.2;
+        s.score += Math.max(0, dev - DISTANCE_TOLERANCE) * 6;
       }
       // Y una dura por repetir camino: entre dos rutas parecidas, siempre la
       // que no te hace desandar lo andado. El peso es alto a proposito, para
@@ -642,34 +682,124 @@ export async function plan(
 
   // --- 4. Refinado de distancia para los mejores bucles --------------------
   if (req.shape === "circular") {
-    const seen = new Set<string>();
-    const toFix: Scored[] = [];
-    for (const s of scored) {
-      if (seen.has(s.shape.id)) continue;
-      seen.add(s.shape.id);
-      const dev = Math.abs(s.shape.geometry.distanceM - targetM) / targetM;
-      if (dev > 0.08) toFix.push(s);
-      if (toFix.length >= MAX_REFINEMENTS) break;
-    }
-    if (toFix.length) {
-      const n = loopVertices(req.distanceKm);
+    const desvio = (s: Shaped) => Math.abs(s.geometry.distanceM - targetM) / targetM;
+    const n = loopVertices(req.distanceKm);
+
+    /*
+     * Iterativo, no de una pasada. El poligono se reescala segun lo que
+     * devolvio el router, pero una sola correccion no siempre basta: si el
+     * router recorta mucho las esquinas, la primera pasada se queda a medias y
+     * antes se aceptaba tal cual. Se para en cuanto hay dos candidatos dentro
+     * de tolerancia, para no gastar peticiones de mas.
+     */
+    /*
+     * Lo ultimo que se le PIDIO a cada candidato y lo que SALIO. La relacion
+     * entre el tamano del poligono y los kilometros de carretera no es
+     * monotona —encoger el poligono puede alargar la ruta, porque los vertices
+     * caen en otras carreteras— asi que la correccion se calcula sobre el
+     * ultimo intento real y no sobre la geometria que conservamos. Tirar esa
+     * medicion era lo que dejaba clavado el caso de 60 km: el intento salia
+     * peor, se descartaba entero, y la ronda siguiente repetia el mismo error.
+     */
+    const intentos = new Map<string, { pedido: number; salio: number }>();
+
+    for (let ronda = 0; ronda < MAX_REFINE_ROUNDS; ronda++) {
+      if (shapes.filter((s) => desvio(s) <= DISTANCE_TOLERANCE).length >= 2) break;
+
+      const seen = new Set<string>();
+      const toFix: Scored[] = [];
+      for (const s of scored) {
+        if (seen.has(s.shape.id)) continue;
+        seen.add(s.shape.id);
+        if (desvio(s.shape) > DISTANCE_TOLERANCE) toFix.push(s);
+        if (toFix.length >= MAX_REFINEMENTS) break;
+      }
+      if (!toFix.length) break;
+
       const fixed = await Promise.allSettled(
         toFix.map((s) => {
           routingCalls++;
-          const scale = targetM / s.shape.geometry.distanceM;
-          const wps = polygonLoop(
-            req.start,
-            s.shape.headingDeg ?? 0,
-            (targetM / DETOUR_FACTOR) * scale,
-            n,
-            true
-          );
+          const anterior = intentos.get(s.shape.id);
+          // Solo vale como historial si la peticion respondio algo con sentido:
+          // si fallo, `salio` se queda sin numero y arrastrarlo daria NaN al
+          // reescalado, un poligono con vertices invalidos y una ruta absurda.
+          const previo =
+            anterior && Number.isFinite(anterior.salio) && anterior.salio > 0
+              ? anterior
+              : undefined;
+          // Con historial se corrige sobre el ultimo intento; sin el, sobre la
+          // geometria actual. En los dos casos: si pediendo X salio X*1,12,
+          // hay que pedir X/1,12.
+          const scale = previo
+            ? targetM / previo.salio
+            : targetM / s.shape.geometry.distanceM;
+
+          /*
+           * Cada generador se reescala con el SUYO. Refinar un bucle de ORS
+           * construyendole un poligono no lo corrige: da otra ruta distinta,
+           * que suele salir peor y se descarta, y el candidato se quedaba con
+           * su distancia mala. Es lo que hacia que pedir 75 km devolviese 84
+           * ronda tras ronda sin mejorar.
+           */
+          const rt = /^rt(\d+)$/.exec(s.shape.id);
+          if (rt && chain[0] === "ors") {
+            const objetivo = (previo?.pedido ?? targetM) * scale;
+            if (objetivo <= ROUND_TRIP_MAX_M) {
+              const semilla = Number(rt[1]);
+              intentos.set(s.shape.id, { pedido: objetivo, salio: NaN });
+              return limit(() =>
+                route([req.start], req.surface, ["ors"], signal, {
+                  roundTrip: {
+                    lengthM: objetivo,
+                    // Mismos puntos y semilla que el original: queremos ESTE
+                    // bucle a la medida buena, no uno cualquiera.
+                    points: 4 + (semilla % 3),
+                    seed: semilla * 7 + 1,
+                  },
+                })
+              );
+            }
+          }
+
+          const perimetro = (previo?.pedido ?? targetM / DETOUR_FACTOR) * scale;
+          intentos.set(s.shape.id, { pedido: perimetro, salio: NaN });
+          const wps = polygonLoop(req.start, s.shape.headingDeg ?? 0, perimetro, n, true);
           return limit(() => route(wps, req.surface, chain, signal));
         })
       );
+
+      let alguno = false;
       fixed.forEach((r, i) => {
-        if (r.status !== "fulfilled") return;
         const old = toFix[i].shape;
+        if (r.status !== "fulfilled") {
+          // Sin medicion no hay historial que usar; se borra para que la ronda
+          // siguiente vuelva a partir de la geometria conservada.
+          intentos.delete(old.id);
+          return;
+        }
+
+        /*
+         * Cordura antes que cercania. Sin esto, un router que devuelve una
+         * "ruta" de dos puntos y cero metros la colaba: comparada con un bucle
+         * de 65 km cuando se pedian 30, cero esta MAS CERCA del objetivo, asi
+         * que pasaba por mejora y el plan acababa devolviendo 0,0 km.
+         */
+        const sano =
+          r.value.distanceM > 0 &&
+          r.value.coords.length >= 2 &&
+          r.value.distanceM / targetM >= 0.5 &&
+          r.value.distanceM / targetM <= 1.8;
+        if (!sano) {
+          intentos.delete(old.id);
+          return;
+        }
+
+        // Se anota SIEMPRE lo que salio, mejore o no: es justo el dato que
+        // necesita la ronda siguiente para acertar.
+        const intento = intentos.get(old.id);
+        if (intento) intento.salio = r.value.distanceM;
+        alguno = true;
+
         const better =
           Math.abs(r.value.distanceM - targetM) < Math.abs(old.geometry.distanceM - targetM);
         if (!better) return;
@@ -678,9 +808,38 @@ export async function plan(
           shapes[idx] = buildShape(old.id, old.label, r.value, old.headingDeg);
         }
       });
+      // Si no respondio ni una peticion, otra ronda tampoco va a responder.
+      if (!alguno) break;
+
       scored = evaluateAll(shapes);
       applyScores(scored);
     }
+
+    /*
+     * Filtro duro, y es la pieza que de verdad faltaba. Sin esto la
+     * penalizacion solo *desaconseja* pasarse, y el viento la tapaba: pedir
+     * 100 km devolvia 89 teniendo uno de 107 a mano. La distancia se pide
+     * explicitamente; el viento decide entre las que la cumplen, no si se
+     * cumple.
+     */
+    const enTolerancia = shapes.filter((s) => desvio(s) <= DISTANCE_TOLERANCE);
+    if (enTolerancia.length) {
+      const copia = enTolerancia.slice();
+      shapes.length = 0;
+      shapes.push(...copia);
+    } else if (shapes.length) {
+      // Nada llega. Se da lo mas parecido, pero diciendolo: mejor un aviso que
+      // una ruta de 62 km cuando se pidieron 75 y nadie explica por que.
+      const mejor = shapes.reduce((a, b) => (desvio(a) <= desvio(b) ? a : b));
+      warnings.push(
+        t("distanceOff", {
+          pedido: (targetM / 1000).toFixed(0),
+          real: (mejor.geometry.distanceM / 1000).toFixed(1),
+        })
+      );
+    }
+    scored = evaluateAll(shapes);
+    applyScores(scored);
   }
 
   // --- 5. Altimetria para los finalistas ----------------------------------
