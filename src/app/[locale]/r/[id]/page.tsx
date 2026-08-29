@@ -4,6 +4,7 @@ import Planner from "@/components/Planner";
 import { RegistrarSW } from "@/components/PWA";
 import { dbEnabled } from "@/lib/db";
 import { getShare } from "@/lib/share";
+import { alternatesFor } from "@/lib/seo";
 import type { Surface, WindMode } from "@/lib/types";
 
 // La ruta compartida se lee de la base de datos en cada visita: sin base de
@@ -33,6 +34,10 @@ export async function generateMetadata({
     // está el Open Graph de arriba— pero no tiene por qué acabar en un
     // buscador. `follow` se deja puesto para que los enlaces de dentro cuenten.
     robots: { index: false, follow: true },
+    // Sin esto hereda el `alternates` del layout y la ruta compartida declara
+    // que es la portada. Vale también estando en `noindex`: un enlace que
+    // circula por WhatsApp no debería contradecirse consigo mismo.
+    alternates: alternatesFor(locale, `/r/${id}`),
   };
 }
 
