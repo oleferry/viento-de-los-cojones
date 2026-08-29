@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link, redirect } from "@/i18n/navigation";
 import { auth, authAvailable, signIn } from "@/lib/auth";
+import { alternatesFor } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +12,19 @@ export async function generateMetadata({
 }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "SignIn" });
-  // Una pantalla de acceso no resuelve ninguna busqueda. Fuera del indice y
+  // Una pantalla de acceso no resuelve ninguna búsqueda. Fuera del índice y
   // fuera del sitemap, para no pedir y prohibir lo mismo a la vez.
-  return { title: t("pageTitle"), robots: { index: false, follow: true } };
+  //
+  // El `alternates` va aunque la página sea `noindex`, y no sobra: sin él se
+  // hereda el del layout, que solo es correcto para la portada. En producción
+  // esta página estaba declarando que era `/es`. Es exactamente la trampa que
+  // describe el comentario del layout, y caí en ella dos ficheros después de
+  // escribirlo.
+  return {
+    title: t("pageTitle"),
+    robots: { index: false, follow: true },
+    alternates: alternatesFor(locale, "/entrar"),
+  };
 }
 
 export default async function Entrar({
