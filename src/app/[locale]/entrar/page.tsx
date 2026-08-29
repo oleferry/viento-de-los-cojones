@@ -11,7 +11,9 @@ export async function generateMetadata({
 }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "SignIn" });
-  return { title: t("pageTitle") };
+  // Una pantalla de acceso no resuelve ninguna busqueda. Fuera del indice y
+  // fuera del sitemap, para no pedir y prohibir lo mismo a la vez.
+  return { title: t("pageTitle"), robots: { index: false, follow: true } };
 }
 
 export default async function Entrar({

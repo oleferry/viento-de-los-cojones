@@ -28,6 +28,11 @@ export async function generateMetadata({
       title: share.name,
       description: t("metaDescription", { name: share.name, km }),
     },
+    // Compartir no es publicar. La ruta es de quien la trazó y suele empezar en
+    // su casa: el enlace tiene que abrirse y verse bien en WhatsApp —para eso
+    // está el Open Graph de arriba— pero no tiene por qué acabar en un
+    // buscador. `follow` se deja puesto para que los enlaces de dentro cuenten.
+    robots: { index: false, follow: true },
   };
 }
 
