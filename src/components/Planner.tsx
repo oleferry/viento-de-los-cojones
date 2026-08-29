@@ -51,7 +51,9 @@ import type { MapTheme } from "./MapView";
 
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
-  loading: () => <div className="absolute inset-0 bg-[#080b11]" />,
+  // Del mismo color que el mapa claro, que es con el que arranca: con el negro
+  // de antes se veia un parpadeo oscuro antes de aparecer el mapa.
+  loading: () => <div className="absolute inset-0 bg-[#eef1f5]" />,
 });
 
 const SURFACES: Surface[] = ["carretera", "mixto", "camino"];
@@ -105,7 +107,14 @@ export default function Planner({
   const [hoverKm, setHoverKm] = useState<number | null>(null);
   const [showArrows, setShowArrows] = useState(true);
   const [showAlts, setShowAlts] = useState(true);
-  const [mapTheme, setMapTheme] = useState<MapTheme>("dark");
+  /*
+   * El mapa arranca en CLARO. El panel sigue siendo oscuro, pero el mapa es
+   * para leerlo: voyager dibuja las comarcales y los caminos con mucho mas
+   * contraste que dark_all, y la ruta va coloreada por viento sobre el, asi
+   * que el fondo claro deja que el verde y el rojo se distingan. En oscuro
+   * compiten con el fondo.
+   */
+  const [mapTheme, setMapTheme] = useState<MapTheme>("light");
   const [sheetOpen, setSheetOpen] = useState(false);
   /**
    * En movil el panel no cabe entero. Con resultado, se ensena el resultado y
