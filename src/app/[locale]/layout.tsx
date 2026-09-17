@@ -5,7 +5,13 @@ import { NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
-import { alternatesFor } from "@/lib/seo";
+import {
+  SITE_NAME,
+  alternatesFor,
+  jsonLdScript,
+  languageTag,
+  structuredData,
+} from "@/lib/seo";
 import "../globals.css";
 
 export function generateStaticParams() {
@@ -29,18 +35,18 @@ export async function generateMetadata({
     ),
     title: t("title"),
     description: t("description"),
-    applicationName: "Ondivento",
+    applicationName: SITE_NAME,
     openGraph: {
       type: "website",
-      locale: locale === "en" ? "en_US" : "es_ES",
-      title: "Ondivento",
+      locale: languageTag(locale).replace("-", "_"),
+      title: SITE_NAME,
       description: t("description"),
     },
     twitter: { card: "summary_large_image" },
     // iOS no lee el manifest para esto: hay que decirselo aparte.
     appleWebApp: {
       capable: true,
-      title: "Ondivento",
+      title: SITE_NAME,
       statusBarStyle: "black-translucent",
     },
     // Valor de reserva, correcto solo para la portada. Cada página declara el
@@ -75,10 +81,18 @@ export default async function RootLayout({
   // Necesario para que las paginas de dentro puedan renderizarse estaticas:
   // sin esto next-intl fuerza render dinamico en todo lo que use useTranslations.
   setRequestLocale(locale);
+  const t = await getTranslations({ locale, namespace: "Metadata" });
 
   return (
     <html lang={locale}>
       <body>
+        {/* Qué es el sitio, en schema.org. Ver `structuredData()`. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript(structuredData(locale, t("description"))),
+          }}
+        />
         <NextIntlClientProvider>
           {children}
           <Analytics />

@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { alternatesFor } from "@/lib/seo";
+import { PUBLISHER_NAME, alternatesFor } from "@/lib/seo";
 
 export async function generateMetadata({
   params,
@@ -55,7 +55,7 @@ export default async function Privacidad({
 
       <div className="prose mt-7 space-y-6 text-[0.88rem] leading-relaxed text-[var(--color-muted)]">
         <Section title={t("whoTitle")}>
-          <p>{t.rich("whoBody", { mail: () => <Mail /> })}</p>
+          <p>{t.rich("whoBody", { owner: PUBLISHER_NAME, mail: () => <Mail /> })}</p>
         </Section>
 
         <Section title={t("noAccountTitle")}>

@@ -67,7 +67,7 @@
     "title": "Privacy",
     "updated": "Last updated: August 2026.",
     "whoTitle": "Who handles the data",
-    "whoBody": "Ondivento is a personal project by Daniel Paniagua. For any question, or to exercise your rights over your data, write to <mail></mail>.",
+    "whoBody": "Ondivento is a personal project by {owner}. For any question, or to exercise your rights over your data, write to <mail></mail>.",
     "noAccountTitle": "Planning a route neither asks for nor stores your identity",
     "noAccountBody": "This comes first because it's what actually matters: you can plan routes, see the forecast and export the GPX <b>without creating an account</b>. The start point, the distance and the route coordinates are sent to our server only to work out the route, and passed on to the map and weather providers listed below — they aren't stored in any database tied to you. Your rider profile (height, weight, FTP, bike) stays in your own browser, not on our servers, unless you decide to create an account. <b>The one exception is pressing \"Share\"</b>: that deliberately stores a copy of that route, because it's exactly what makes the link work. It's explained in full below.",
     "accountTitle": "If you create an account",

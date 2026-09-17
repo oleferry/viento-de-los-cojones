@@ -67,7 +67,7 @@
     "title": "Privacidad",
     "updated": "Última actualización: agosto de 2026.",
     "whoTitle": "Quién trata los datos",
-    "whoBody": "Ondivento es un proyecto personal de Daniel Paniagua. Para cualquier duda o para ejercer tus derechos sobre tus datos, escribe a <mail></mail>.",
+    "whoBody": "Ondivento es un proyecto personal de {owner}. Para cualquier duda o para ejercer tus derechos sobre tus datos, escribe a <mail></mail>.",
     "noAccountTitle": "Planificar una ruta no pide ni guarda tu identidad",
     "noAccountBody": "Esto es lo primero porque es lo que de verdad importa: puedes trazar rutas, ver el pronóstico y exportar el GPX <b>sin crear cuenta</b>. El punto de salida, la distancia y las coordenadas de la ruta se mandan a nuestro servidor solo para calcular el trazado y se reenvían a los proveedores de mapas y meteorología de abajo — no se guardan en ninguna base de datos ligados a ti. Tu perfil de ciclista (altura, peso, FTP, bici) se queda guardado en tu propio navegador, no en nuestros servidores, salvo que decidas crear cuenta. <b>La única excepción es que pulses «Compartir»</b>: eso guarda una copia de esa ruta a propósito, porque es justo lo que hace que el enlace funcione. Te lo explicamos entero más abajo.",
     "accountTitle": "Si creas una cuenta",
