@@ -267,7 +267,8 @@
     "more": "más",
     "howDraft": "Rebufo: vas tapado el {frac}% del tiempo con un ahorro del {saving}%, y el beneficio se degrada tramo a tramo según lo angulado que entre el aire.",
     "share": "Compartir",
-    "sharing": "Creando enlace…"
+    "sharing": "Creando enlace…",
+    "howItWorks": "Cómo funciona"
   },
   "Rider": {
     "title": "Perfil de ciclista",
@@ -512,5 +513,66 @@
     "metaDescription": "{name}: {km} km trazados según el viento. Mira a qué hora conviene hacerla.",
     "ogKicker": "Ruta compartida",
     "ogTagline": "Ábrela en Ondivento y te dice a qué hora hacerla con el viento de hoy."
+  },
+  "About": {
+    "pageTitle": "Cómo funciona · Ondivento",
+    "description": "Ondivento traza rutas en bici a partir de la previsión de viento hora a hora: por dónde salir y a qué hora para no volver 80 km de cara. Gratis y sin cuenta.",
+    "back": "← Volver al mapa",
+    "title": "Cómo funciona Ondivento",
+    "lead": "Un planificador de rutas en bici que traza la ruta en función del viento, en vez de decirte el viento de una ruta que ya tienes.",
+    "cta": "Planificar una ruta",
+    "problemTitle": "El problema",
+    "problemBody": "En terreno llano y abierto —Tierra de Campos, La Mancha, los Monegros— el viento decide si una salida de 80 km es agradable o un castigo. El error clásico es salir con el viento a favor porque se va cómodo y volver 80 km de cara. Las webs del tiempo te dicen qué viento hace, pero no saben por dónde vas a ir. Los planificadores de rutas trazan muy bien, pero ignoran el viento.",
+    "whatTitle": "Qué hace",
+    "whatIntro": "Le dices de dónde sales, cuántos kilómetros quieres y qué prefieres sufrir. Te devuelve el trazado que mejor le viene al aire y la hora a la que conviene salir.",
+    "what": [
+      "Ruta circular que vuelve al punto de salida, o de A a B.",
+      "Tres estrategias: volver a favor (el regalo, al final), el palo primero (de cara al salir) o menos esfuerzo en toda la ruta.",
+      "Carretera, camino o mixto, con el reparto de asfalto que da OpenStreetMap.",
+      "La mejor hora de salida dentro del margen que le des, y la previsión a cinco días para ver si conviene ir mañana.",
+      "Importar tu propia ruta (GPX, TCX o KML) para saber cuándo hacerla y en qué sentido.",
+      "Descargar el GPX con la hora estimada de paso por cada punto, y compartir la ruta por enlace.",
+      "Avisos por correo cuando hace buen viento para tu ruta."
+    ],
+    "howTitle": "Cómo lo calcula",
+    "how": [
+      "Prueba una docena de trazados que salen en direcciones distintas: la dirección de salida es lo que más cambia el viento que te toca.",
+      "Descarta lo que no es una ruta, como ir y volver por la misma carretera.",
+      "Simula cada trazado avanzando el reloj: usa la previsión de la hora a la que pasarías por cada punto, no la de la salida.",
+      "En cada tramo de 400 m calcula tu velocidad con el viento sobre tu rumbo, la pendiente y tu perfil de ciclista.",
+      "Ordena los trazados según la estrategia que hayas elegido."
+    ],
+    "howNote": "El viento se corrige de los 10 m a los que lo dan los modelos a la altura del ciclista, la densidad del aire sale de la presión, la temperatura y la humedad reales, y el rebufo de la grupeta se reduce cuando el viento entra de lado.",
+    "limitsTitle": "Lo que no puede prometer",
+    "limits": [
+      "La previsión es previsión: a tres días orienta; a diez, no.",
+      "No sabe de setos, tapias ni desmontes. En una ruta resguardada se equivocará.",
+      "El tipo de firme depende de OpenStreetMap. Si un tramo no está etiquetado, no se sabe, y la app lo dice.",
+      "Los tiempos dependen del perfil que metas: con un FTP optimista saldrán tiempos optimistas."
+    ],
+    "limitsNote": "Es una estimación, no una promesa. Lo que sí da es salir sabiendo por dónde te va a pegar el aire, en vez de descubrirlo a mitad de camino.",
+    "faqTitle": "Preguntas frecuentes",
+    "faq": [
+      {
+        "q": "¿Hace falta registrarse?",
+        "a": "No. Planificar funciona igual sin cuenta. La cuenta solo sirve para llevarte el perfil, las bicis y las rutas de un dispositivo a otro, y para los avisos por correo."
+      },
+      {
+        "q": "¿Cuánto cuesta?",
+        "a": "Nada. Es un proyecto personal y gratuito, sin publicidad."
+      },
+      {
+        "q": "¿Solo sirve para Tierra de Campos?",
+        "a": "No. Nació pensando en la meseta, pero la previsión y los mapas que usa son de todo el mundo, y la app está en español y en inglés."
+      },
+      {
+        "q": "¿Puedo usar una ruta que ya tengo?",
+        "a": "Sí. Importa un GPX, TCX o KML y te dice a qué hora hacerla y en qué sentido para que el viento te trate mejor."
+      },
+      {
+        "q": "¿Se puede usar en el móvil?",
+        "a": "Sí. Se instala como app desde el navegador y abre aunque no haya cobertura."
+      }
+    ]
   }
 }
