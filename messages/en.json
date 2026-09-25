@@ -267,7 +267,8 @@
     "more": "more",
     "howDraft": "Drafting: you sit in {frac}% of the time with a {saving}% saving, and the benefit tapers segment by segment as the wind comes in more angled.",
     "share": "Share",
-    "sharing": "Creating link…"
+    "sharing": "Creating link…",
+    "howItWorks": "How it works"
   },
   "Rider": {
     "title": "Rider profile",
@@ -512,5 +513,66 @@
     "metaDescription": "{name}: {km} km planned around the wind. See what time to ride it.",
     "ogKicker": "Shared route",
     "ogTagline": "Open it in Ondivento and it'll tell you what time to ride it in today's wind."
+  },
+  "About": {
+    "pageTitle": "How it works · Ondivento",
+    "description": "Ondivento plans bike routes from the hour-by-hour wind forecast: which way to head out and when, so you don't ride 80 km home into a headwind. Free, no account needed.",
+    "back": "← Back to the map",
+    "title": "How Ondivento works",
+    "lead": "A bike route planner that draws the route around the wind, instead of telling you the wind on a route you already have.",
+    "cta": "Plan a route",
+    "problemTitle": "The problem",
+    "problemBody": "On flat, open ground the wind decides whether an 80 km ride is a pleasure or a punishment. The classic mistake is heading out with a tailwind because it feels easy, then riding 80 km home into it. Weather sites tell you what the wind is doing, but not where you'll be riding. Route planners draw great routes, but ignore the wind.",
+    "whatTitle": "What it does",
+    "whatIntro": "Tell it where you start, how far you want to go and what you'd rather suffer. It gives you the route that suits the wind best, and the time you should set off.",
+    "what": [
+      "A loop back to your start, or A to B.",
+      "Three strategies: tailwind home (the gift at the end), headwind first, or least effort over the whole ride.",
+      "Road, gravel or mixed, with the surface split that OpenStreetMap provides.",
+      "The best start time within the window you give it, and a five-day forecast to see whether tomorrow is better.",
+      "Import your own route (GPX, TCX or KML) to find out when to ride it and in which direction.",
+      "Download the GPX with the estimated time at every point, and share the route with a link.",
+      "Email alerts when the wind is good for your route."
+    ],
+    "howTitle": "How it works it out",
+    "how": [
+      "It tries a dozen routes heading out in different directions: the direction you start in is what changes the wind you get the most.",
+      "It throws out anything that isn't really a route, like riding out and back on the same road.",
+      "It simulates each route with the clock running: it uses the forecast for the hour you'd reach each point, not the hour you set off.",
+      "On every 400 m stretch it works out your speed from the wind along your heading, the gradient and your rider profile.",
+      "It ranks the routes by the strategy you picked."
+    ],
+    "howNote": "The wind is corrected from the 10 m height the models give down to rider height, air density comes from real pressure, temperature and humidity, and the draft behind other riders shrinks when the wind comes from the side.",
+    "limitsTitle": "What it can't promise",
+    "limits": [
+      "A forecast is a forecast: three days out it's a guide; ten days out, it isn't.",
+      "It knows nothing about hedges, walls or cuttings. On a sheltered route it will be wrong.",
+      "Surface type depends on OpenStreetMap. If a stretch isn't tagged, it's unknown, and the app says so.",
+      "Times depend on the profile you enter: an optimistic FTP gives optimistic times."
+    ],
+    "limitsNote": "It's an estimate, not a promise. What it does give you is heading out knowing where the wind will hit you, instead of finding out halfway round.",
+    "faqTitle": "Frequently asked questions",
+    "faq": [
+      {
+        "q": "Do I need an account?",
+        "a": "No. Planning works the same without one. An account only carries your profile, bikes and routes between devices, and turns on email alerts."
+      },
+      {
+        "q": "How much does it cost?",
+        "a": "Nothing. It's a free personal project, with no ads."
+      },
+      {
+        "q": "Does it only work in Spain?",
+        "a": "No. It was built with the Spanish plateau in mind, but the forecast and maps it uses cover the whole world, and the app is in English and Spanish."
+      },
+      {
+        "q": "Can I use a route I already have?",
+        "a": "Yes. Import a GPX, TCX or KML file and it tells you what time to ride it and in which direction so the wind treats you better."
+      },
+      {
+        "q": "Does it work on my phone?",
+        "a": "Yes. It installs as an app from the browser and opens even without coverage."
+      }
+    ]
   }
 }

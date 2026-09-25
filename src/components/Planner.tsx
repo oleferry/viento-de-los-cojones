@@ -886,7 +886,11 @@ export default function Planner({
             />
           )}
 
-          <div className={`flex justify-center gap-3 pt-1 text-[0.66rem] text-[var(--color-faint)] ${ocultaEnMovil}`}>
+          <div className={`flex flex-wrap justify-center gap-x-3 gap-y-1 pt-1 text-[0.66rem] text-[var(--color-faint)] ${ocultaEnMovil}`}>
+            <Link href="/como-funciona" className="hover:text-[var(--color-muted)]">
+              {t("howItWorks")}
+            </Link>
+            <span aria-hidden>·</span>
             <Link href="/privacidad" className="hover:text-[var(--color-muted)]">
               {t("privacy")}
             </Link>
